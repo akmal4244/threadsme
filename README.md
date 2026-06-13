@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | Sistem Marvis Threads Auto (SMTA) |
 | Repo slug | smta |
-| Versi | v0.7.1 |
+| Versi | v0.7.2 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -41,10 +41,26 @@ npm install
 npm run start
 ```
 
-Buka:
+URL rasmi localhost pada PC ini menggunakan Apache/XAMPP:
 
 ```text
-http://127.0.0.1:8791/smta/
+http://localhost/smta/
+```
+
+Untuk deploy semula fail static ke XAMPP:
+
+```bash
+npm run deploy:xampp
+```
+
+Jika mahu jalan terus dengan Node tanpa XAMPP, guna fallback dev:
+
+```bash
+npm run start:dev
+```
+
+```text
+http://localhost:8791/smta/
 ```
 
 Jalankan server AI dalam terminal lain:
@@ -143,6 +159,12 @@ flowchart TD
 SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas SMTA berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.7.2
+
+- Jadikan URL local rasmi kepada `http://localhost/smta/`.
+- Tambah script `start:dev` untuk fallback `http://localhost:8791/smta/`.
+- Tambah script `deploy:xampp` untuk salin build static ke `C:\xampp\htdocs\smta`.
 
 ### v0.7.1
 

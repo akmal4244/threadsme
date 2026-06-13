@@ -1,12 +1,14 @@
 {
   "name": "smta",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": false,
   "type": "module",
   "description": "Sistem Marvis Threads Auto (SMTA) untuk jana story, jadual Threads, dan automasi publisher.",
   "scripts": {
-    "start": "node server.mjs 8791",
+    "start": "node server.mjs",
+    "start:dev": "node server.mjs 8791",
     "ai": "node ai-server.mjs 8788",
+    "deploy:xampp": "powershell -ExecutionPolicy Bypass -File scripts/deploy-xampp.ps1",
     "check": "node --check app.js && node --check ai-server.mjs && node --check server.mjs"
   },
   "keywords": [

@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = here;
-const port = Number(process.argv[2] || 8765);
-const host = "127.0.0.1";
+const port = Number(process.env.SMTA_PORT || process.argv[2] || 80);
+const host = process.env.SMTA_HOST || "0.0.0.0";
+const publicPort = port === 80 ? "" : `:${port}`;
 
 const mime = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -53,5 +54,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`SMTA listening at http://${host}:${port}/smta/`);
+  console.log(`SMTA listening at http://localhost${publicPort}/smta/`);
 });
