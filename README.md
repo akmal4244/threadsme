@@ -136,6 +136,7 @@ Jika mahu deploy public:
 - Set `THREADSME_AUTH_REQUIRED=true`.
 - Username dan password admin boleh diset melalui GUI pada login pertama; password juga boleh diset melalui env `THREADSME_ADMIN_PASSWORD`.
 - Checkbox `Ingat saya` di login menyimpan username/password dalam browser localStorage bila ditick. Jika untick, login/logout akan kosongkan semula field dan padam storage.
+- Dalam mode local, butang `Log keluar` tetap dipaparkan dan menyimpan lock UI tempatan supaya skrin `Log masuk/Setup` muncul sehingga user sign in semula.
 - Session cookie ialah `HttpOnly` + `SameSite=Lax`.
 - Semua `POST` protected perlukan CSRF token daripada login session.
 - CORS hanya benarkan origin dalam `THREADSME_ALLOWED_ORIGINS`.

@@ -376,6 +376,7 @@ async function getAuthStatus(req) {
   const session = await getAdminSession(req);
   return {
     authRequired,
+    hasPassword: Boolean(auth.hasPassword),
     setupRequired: authRequired && !auth.hasPassword,
     authenticated: !authRequired || Boolean(session),
     csrfToken: session?.csrfToken || "",

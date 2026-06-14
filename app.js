@@ -21,7 +21,7 @@ const state = {
   autoAudit: { summary: null, actions: [] },
   productAudit: { summary: null, items: [] },
   productIntel: null,
-  auth: { authRequired: false, authenticated: false, setupRequired: false, csrfToken: "" },
+  auth: { authRequired: false, authenticated: false, setupRequired: false, csrfToken: "", hasPassword: false, localLocked: false },
   appStarted: false,
   aiHealth: { ok: false, hasKey: false, model: "" },
   publisher: {
@@ -38,6 +38,7 @@ const DAILY_POSTING_TARGET = 25;
 const DEFAULT_PRODUCT_IMAGE = "./assets/flexi-marble-sheet.webp";
 const DEFAULT_PRODUCT_IMAGE_LABEL = "Gambar produk Flexi Marble Sheet";
 const AUTH_REMEMBER_STORAGE_KEY = "threadsme.auth.rememberedCredentials";
+const AUTH_LOCAL_LOCK_STORAGE_KEY = "threadsme.auth.localLocked";
 
 function apiFetch(path, options = {}) {
   const method = String(options.method || "GET").toUpperCase();
@@ -290,6 +291,26 @@ function clearRememberedAuth() {
   }
 }
 
+function readLocalAuthLocked() {
+  try {
+    return window.localStorage.getItem(AUTH_LOCAL_LOCK_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function setLocalAuthLocked(locked) {
+  try {
+    if (locked) {
+      window.localStorage.setItem(AUTH_LOCAL_LOCK_STORAGE_KEY, "true");
+    } else {
+      window.localStorage.removeItem(AUTH_LOCAL_LOCK_STORAGE_KEY);
+    }
+  } catch {
+    // Local sign-out state is a UI convenience only.
+  }
+}
+
 function clearAuthCredentialFields() {
   if (els.adminUsername) els.adminUsername.value = "";
   if (els.adminPassword) els.adminPassword.value = "";
@@ -309,10 +330,10 @@ function hydrateRememberedAuthFields() {
 function renderAuthGate() {
   if (!els.authGate) return;
   const auth = state.auth;
-  const needsGate = auth.authRequired && !auth.authenticated;
+  const needsGate = (auth.authRequired || auth.localLocked) && !auth.authenticated;
   els.authGate.hidden = !needsGate;
   document.body.classList.toggle("auth-locked", needsGate);
-  if (els.logoutButton) els.logoutButton.hidden = !auth.authRequired || !auth.authenticated;
+  if (els.logoutButton) els.logoutButton.hidden = !auth.authenticated;
   if (!needsGate) return;
   const setup = Boolean(auth.setupRequired);
   if (els.authTitle) els.authTitle.textContent = setup ? "Setup Admin ThreadsMe" : "Login ThreadsMe";
@@ -332,11 +353,16 @@ async function refreshAuthStatus() {
   const response = await apiFetch("/api/auth/status", { cache: "no-store" });
   const data = await response.json();
   if (!response.ok || !data.ok) throw new Error(data.error || "Auth status gagal");
+  const authRequired = Boolean(data.authRequired);
+  const hasPassword = Boolean(data.hasPassword);
+  const localLocked = !authRequired && readLocalAuthLocked();
   state.auth = {
-    authRequired: Boolean(data.authRequired),
-    authenticated: Boolean(data.authenticated),
-    setupRequired: Boolean(data.setupRequired),
+    authRequired,
+    authenticated: localLocked ? false : Boolean(data.authenticated),
+    setupRequired: localLocked ? !hasPassword : Boolean(data.setupRequired),
     csrfToken: data.csrfToken || "",
+    hasPassword,
+    localLocked,
   };
   renderAuthGate();
   return state.auth;
@@ -367,7 +393,10 @@ async function submitAuth() {
       authenticated: Boolean(data.authenticated),
       setupRequired: Boolean(data.setupRequired),
       csrfToken: data.csrfToken || "",
+      hasPassword: Boolean(data.hasPassword),
+      localLocked: false,
     };
+    setLocalAuthLocked(false);
     if (remember) {
       saveRememberedAuth(username, password);
     } else {
@@ -392,7 +421,14 @@ async function logoutAdmin() {
   } catch {
     // Logout should still clear the UI state even if the server is temporarily unavailable.
   }
-  state.auth = { authRequired: true, authenticated: false, setupRequired: false, csrfToken: "" };
+  setLocalAuthLocked(true);
+  state.auth = {
+    ...state.auth,
+    authenticated: false,
+    setupRequired: !state.auth.hasPassword,
+    csrfToken: "",
+    localLocked: true,
+  };
   state.appStarted = false;
   renderAuthGate();
   hydrateRememberedAuthFields();
@@ -2466,7 +2502,7 @@ async function startApplicationData() {
   bindRevealMotion();
   bindTasteMotion();
   window.setInterval(async () => {
-    if (state.auth.authRequired && !state.auth.authenticated) return;
+    if (!state.auth.authenticated) return;
     await refreshSystemData();
     bindTasteMotion();
   }, 60_000);
@@ -2479,12 +2515,19 @@ async function boot() {
   try {
     await refreshAuthStatus();
   } catch (error) {
-    state.auth = { authRequired: true, authenticated: false, setupRequired: false, csrfToken: "" };
+    state.auth = {
+      authRequired: true,
+      authenticated: false,
+      setupRequired: false,
+      csrfToken: "",
+      hasPassword: false,
+      localLocked: true,
+    };
     renderAuthGate();
     if (els.authStatus) els.authStatus.textContent = `Auth server gagal: ${error.message}`;
     return;
   }
-  if (!state.auth.authRequired || state.auth.authenticated) {
+  if (state.auth.authenticated) {
     await startApplicationData();
   }
 }
