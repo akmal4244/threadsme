@@ -18,6 +18,8 @@ foreach ($item in $items) {
   Copy-Item -LiteralPath (Join-Path $source $item) -Destination (Join-Path $target $item) -Force
 }
 
-Copy-Item -LiteralPath (Join-Path $source "assets") -Destination (Join-Path $target "assets") -Recurse -Force
+$targetAssets = Join-Path $target "assets"
+New-Item -ItemType Directory -Force -Path $targetAssets | Out-Null
+Copy-Item -Path (Join-Path $source "assets\*") -Destination $targetAssets -Recurse -Force
 
 Write-Host "ThreadsMe deployed to http://localhost/threadsme/"

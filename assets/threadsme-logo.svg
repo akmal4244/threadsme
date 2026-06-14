@@ -1,26 +1,29 @@
 <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">ThreadsMe logo</title>
-  <desc id="desc">A blue automation monogram for ThreadsMe with connected thread nodes.</desc>
+  <desc id="desc">A clear ThreadsMe T logo with automation nodes.</desc>
   <defs>
-    <linearGradient id="ThreadsMe-bg" x1="34" y1="26" x2="220" y2="232" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2563EB"/>
-      <stop offset="0.54" stop-color="#3158F4"/>
-      <stop offset="1" stop-color="#4F46E5"/>
+    <linearGradient id="tm-bg" x1="32" y1="22" x2="225" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="0.52" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#14B8A6"/>
     </linearGradient>
-    <linearGradient id="ThreadsMe-line" x1="61" y1="77" x2="199" y2="184" gradientUnits="userSpaceOnUse">
+    <linearGradient id="tm-mark" x1="68" y1="62" x2="180" y2="178" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#DBEAFE"/>
+      <stop offset="1" stop-color="#DDFBFF"/>
     </linearGradient>
-    <filter id="ThreadsMe-shadow" x="0" y="0" width="256" height="256" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#1E40AF" flood-opacity="0.22"/>
+    <filter id="tm-shadow" x="0" y="0" width="256" height="256" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0F172A" flood-opacity="0.24"/>
     </filter>
   </defs>
-  <rect x="20" y="20" width="216" height="216" rx="54" fill="url(#ThreadsMe-bg)" filter="url(#ThreadsMe-shadow)"/>
-  <rect x="33" y="33" width="190" height="190" rx="43" stroke="white" stroke-opacity="0.18" stroke-width="2"/>
-  <path d="M66 169V84C66 78.477 70.477 74 76 74H80.4C84.086 74 87.472 76.027 89.213 79.276L128 151.656L166.787 79.276C168.528 76.027 171.914 74 175.6 74H180C185.523 74 190 78.477 190 84V169" stroke="url(#ThreadsMe-line)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M78 174C101.698 193.795 153.85 193.785 178 174" stroke="#BFDBFE" stroke-opacity="0.78" stroke-width="8" stroke-linecap="round"/>
-  <circle cx="66" cy="169" r="12" fill="#FFFFFF"/>
-  <circle cx="128" cy="154" r="10" fill="#DBEAFE"/>
-  <circle cx="190" cy="169" r="12" fill="#FFFFFF"/>
-  <circle cx="190" cy="169" r="23" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="4"/>
+  <rect x="20" y="20" width="216" height="216" rx="56" fill="url(#tm-bg)" filter="url(#tm-shadow)"/>
+  <rect x="35" y="35" width="186" height="186" rx="44" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="2"/>
+  <rect x="60" y="63" width="136" height="26" rx="13" fill="url(#tm-mark)"/>
+  <rect x="115" y="75" width="26" height="105" rx="13" fill="url(#tm-mark)"/>
+  <path d="M141 149H171C184.255 149 195 159.745 195 173V181" stroke="#BBF7D0" stroke-width="10" stroke-linecap="round"/>
+  <path d="M115 124H89C75.745 124 65 134.745 65 148V156" stroke="#C7D2FE" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="60" cy="76" r="12" fill="#FFFFFF"/>
+  <circle cx="196" cy="76" r="12" fill="#FFFFFF"/>
+  <circle cx="65" cy="156" r="12" fill="#C7D2FE"/>
+  <circle cx="195" cy="181" r="12" fill="#BBF7D0"/>
+  <circle cx="128" cy="180" r="14" fill="#FFFFFF"/>
 </svg>

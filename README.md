@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | ThreadsMe |
 | Repo slug | threadsme |
-| Versi | v0.9.2 |
+| Versi | v0.9.3 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -214,6 +214,11 @@ ThreadsMe kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas ThreadsMe berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.9.3
+
+- Tukar logo utama dan favicon kepada identiti ThreadsMe baharu berasaskan monogram `T`.
+- Bump cache favicon/CSS supaya `http://localhost/threadsme/` memaparkan aset logo terbaru.
 
 ### v0.9.2
 

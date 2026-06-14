@@ -261,7 +261,7 @@ textarea {
   width: 44px;
   height: 44px;
   border-radius: var(--radius);
-  background: var(--kumo-ink);
+  background: transparent;
   overflow: hidden;
 }
 
