@@ -238,21 +238,33 @@ function safeCompareHex(a, b) {
   return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
 }
 
+function normalizeAdminUsername(username) {
+  return String(username || "").trim().slice(0, 80);
+}
+
 async function readAdminAuth() {
   const envPassword = String(process.env.THREADSME_ADMIN_PASSWORD || "").trim();
-  if (envPassword) return { source: "env", hasPassword: true };
+  if (envPassword) {
+    return {
+      source: "env",
+      hasPassword: true,
+      username: normalizeAdminUsername(process.env.THREADSME_ADMIN_USERNAME || ""),
+    };
+  }
   const data = await readJsonFile(adminAuthFile, null);
   return data?.passwordHash && data?.salt ? { source: "file", ...data, hasPassword: true } : { source: "none", hasPassword: false };
 }
 
-async function setupAdminPassword(password) {
+async function setupAdminPassword(password, username = "") {
   const clean = String(password || "");
+  const cleanUsername = normalizeAdminUsername(username);
   if (clean.length < 10) badRequest("Kata laluan admin mesti sekurang-kurangnya 10 aksara.");
   const current = await readAdminAuth();
   if (current.hasPassword) throw new HttpError(409, "Admin password sudah diset. Guna login atau reset fail private jika perlu.");
   const salt = randomBytes(16).toString("hex");
   const payload = {
     version: 1,
+    username: cleanUsername,
     salt,
     passwordHash: hashPassword(clean, salt),
     createdAt: `${malaysiaNow()} GMT+8`,
@@ -262,10 +274,14 @@ async function setupAdminPassword(password) {
   return payload;
 }
 
-async function verifyAdminPassword(password) {
+async function verifyAdminPassword(password, username = "") {
   const auth = await readAdminAuth();
   if (!auth.hasPassword) badRequest("Admin password belum diset.");
   const clean = String(password || "");
+  const expectedUsername = normalizeAdminUsername(auth.username);
+  if (expectedUsername && normalizeAdminUsername(username).toLowerCase() !== expectedUsername.toLowerCase()) {
+    return false;
+  }
   if (auth.source === "env") {
     const expectedHash = hashPassword(String(process.env.THREADSME_ADMIN_PASSWORD || ""), "threadsme-env-password");
     const actualHash = hashPassword(clean, "threadsme-env-password");
@@ -369,14 +385,14 @@ async function getAuthStatus(req) {
 }
 
 async function handleAuthSetup(input) {
-  await setupAdminPassword(input.password);
+  await setupAdminPassword(input.password, input.username);
   const session = await createAdminSession();
   return { session, status: await getAuthStatus({ headers: { cookie: `tm_session=${session.token}` } }) };
 }
 
 async function handleAuthLogin(input) {
-  const valid = await verifyAdminPassword(input.password);
-  if (!valid) unauthorized("Kata laluan admin tidak sah.");
+  const valid = await verifyAdminPassword(input.password, input.username);
+  if (!valid) unauthorized("Username atau kata laluan admin tidak sah.");
   const session = await createAdminSession();
   return { session, status: await getAuthStatus({ headers: { cookie: `tm_session=${session.token}` } }) };
 }

@@ -16,7 +16,7 @@
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="./assets/threadsme-favicon.svg?v=4" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=17" />
+    <link rel="stylesheet" href="./styles.css?v=18" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">Langkau ke kandungan utama</a>
@@ -31,8 +31,16 @@
           <p id="authHelp">Masukkan kata laluan admin untuk akses dashboard dan API automation.</p>
         </div>
         <label class="field-stack">
+          <span>Username</span>
+          <input id="adminUsername" type="text" autocomplete="username" placeholder="Contoh: akmalmar" />
+        </label>
+        <label class="field-stack">
           <span>Kata laluan admin</span>
           <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Minimum 10 aksara untuk setup pertama" />
+        </label>
+        <label class="check-row">
+          <input id="adminRememberMe" type="checkbox" />
+          <span>Ingat saya</span>
         </label>
         <button id="authSubmitButton" type="button">Masuk</button>
         <p id="authStatus" class="auth-status">Menyemak status keselamatan...</p>
@@ -699,6 +707,6 @@
 
     <script src="./assets/vendor/gsap.min.js?v=1"></script>
     <script src="./assets/vendor/ScrollTrigger.min.js?v=1"></script>
-    <script src="./app.js?v=19"></script>
+    <script src="./app.js?v=20"></script>
   </body>
 </html>

@@ -69,8 +69,9 @@ Default local:
 Jika mahu public deploy:
 
 - Set `THREADSME_AUTH_REQUIRED=true`.
-- Login pertama melalui GUI akan setup password admin dan simpan hash di `work/private/admin-auth.json`.
+- Login pertama melalui GUI akan setup username/password admin dan simpan hash di `work/private/admin-auth.json`.
 - Alternatif: set `THREADSME_ADMIN_PASSWORD` melalui env/server config.
+- `Ingat saya` menyimpan username/password di browser localStorage hanya bila ditick; untick akan padam storage dan kosongkan field selepas logout.
 - Semua API selain `health` dan auth endpoint memerlukan session admin.
 - Semua `POST` protected memerlukan CSRF token session.
 - `THREADSME_ALLOWED_ORIGINS` mesti mengandungi domain GUI sebenar sahaja.

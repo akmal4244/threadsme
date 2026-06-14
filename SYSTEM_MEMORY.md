@@ -31,6 +31,7 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Product Intel cache aktif berada di `work/runtime/product-intel-cache.json`; cache metadata sahaja, bukan secret.
 - Dashboard/API automation default kepada single-user local mode melalui `THREADSME_AUTH_REQUIRED=false`.
 - Jika mahu public deploy, set `THREADSME_AUTH_REQUIRED=true`; semua POST API protected perlukan CSRF token daripada session admin.
+- Login admin ada `Ingat saya`: bila tick, username/password kekal di browser localStorage walaupun logout; bila untick, logout kosongkan field dan padam storage.
 - CORS mesti dikunci kepada `THREADSME_ALLOWED_ORIGINS`; jangan guna wildcard bila public deploy.
 - Runtime backup disimpan di `work/backups/` dan tidak di-commit.
 

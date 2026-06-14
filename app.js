@@ -37,6 +37,7 @@ const THREADS_SCHEDULE_LIMIT = 25;
 const DAILY_POSTING_TARGET = 25;
 const DEFAULT_PRODUCT_IMAGE = "./assets/flexi-marble-sheet.webp";
 const DEFAULT_PRODUCT_IMAGE_LABEL = "Gambar produk Flexi Marble Sheet";
+const AUTH_REMEMBER_STORAGE_KEY = "threadsme.auth.rememberedCredentials";
 
 function apiFetch(path, options = {}) {
   const method = String(options.method || "GET").toUpperCase();
@@ -55,7 +56,9 @@ const els = {
   authGate: document.querySelector("#authGate"),
   authTitle: document.querySelector("#authTitle"),
   authHelp: document.querySelector("#authHelp"),
+  adminUsername: document.querySelector("#adminUsername"),
   adminPassword: document.querySelector("#adminPassword"),
+  adminRememberMe: document.querySelector("#adminRememberMe"),
   authSubmitButton: document.querySelector("#authSubmitButton"),
   authStatus: document.querySelector("#authStatus"),
   logoutButton: document.querySelector("#logoutButton"),
@@ -249,6 +252,60 @@ function applyStatusData(statusData = {}) {
   }
 }
 
+function readRememberedAuth() {
+  try {
+    const raw = window.localStorage.getItem(AUTH_REMEMBER_STORAGE_KEY);
+    const data = raw ? JSON.parse(raw) : {};
+    return {
+      remember: Boolean(data.remember),
+      username: String(data.username || ""),
+      password: String(data.password || ""),
+    };
+  } catch {
+    return { remember: false, username: "", password: "" };
+  }
+}
+
+function saveRememberedAuth(username, password) {
+  try {
+    window.localStorage.setItem(
+      AUTH_REMEMBER_STORAGE_KEY,
+      JSON.stringify({
+        remember: true,
+        username: String(username || ""),
+        password: String(password || ""),
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+  } catch {
+    // Local browser storage can be unavailable in strict privacy modes.
+  }
+}
+
+function clearRememberedAuth() {
+  try {
+    window.localStorage.removeItem(AUTH_REMEMBER_STORAGE_KEY);
+  } catch {
+    // Ignore local storage errors so login/logout still works.
+  }
+}
+
+function clearAuthCredentialFields() {
+  if (els.adminUsername) els.adminUsername.value = "";
+  if (els.adminPassword) els.adminPassword.value = "";
+}
+
+function hydrateRememberedAuthFields() {
+  const remembered = readRememberedAuth();
+  if (els.adminRememberMe) els.adminRememberMe.checked = remembered.remember;
+  if (remembered.remember) {
+    if (els.adminUsername) els.adminUsername.value = remembered.username;
+    if (els.adminPassword) els.adminPassword.value = remembered.password;
+    return;
+  }
+  clearAuthCredentialFields();
+}
+
 function renderAuthGate() {
   if (!els.authGate) return;
   const auth = state.auth;
@@ -261,13 +318,14 @@ function renderAuthGate() {
   if (els.authTitle) els.authTitle.textContent = setup ? "Setup Admin ThreadsMe" : "Login ThreadsMe";
   if (els.authHelp) {
     els.authHelp.textContent = setup
-      ? "Tetapkan kata laluan admin pertama. Ia disimpan dalam folder private dan tidak di-commit."
-      : "Masukkan kata laluan admin untuk akses dashboard dan API automation.";
+      ? "Tetapkan username dan kata laluan admin pertama. Ia disimpan dalam folder private dan tidak di-commit."
+      : "Masukkan username dan kata laluan admin untuk akses dashboard dan API automation.";
   }
   if (els.authSubmitButton) els.authSubmitButton.textContent = setup ? "Setup & masuk" : "Masuk";
   if (els.adminPassword) {
     els.adminPassword.autocomplete = setup ? "new-password" : "current-password";
   }
+  hydrateRememberedAuthFields();
 }
 
 async function refreshAuthStatus() {
@@ -286,7 +344,9 @@ async function refreshAuthStatus() {
 
 async function submitAuth() {
   if (!els.adminPassword || !els.authSubmitButton) return;
+  const username = els.adminUsername?.value.trim() || "";
   const password = els.adminPassword.value;
+  const remember = Boolean(els.adminRememberMe?.checked);
   if (!password) {
     if (els.authStatus) els.authStatus.textContent = "Masukkan kata laluan admin.";
     return;
@@ -298,7 +358,7 @@ async function submitAuth() {
     const response = await apiFetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ username, password, remember }),
     });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "Login gagal");
@@ -308,8 +368,13 @@ async function submitAuth() {
       setupRequired: Boolean(data.setupRequired),
       csrfToken: data.csrfToken || "",
     };
-    els.adminPassword.value = "";
-    if (els.authStatus) els.authStatus.textContent = "Akses disahkan.";
+    if (remember) {
+      saveRememberedAuth(username, password);
+    } else {
+      clearRememberedAuth();
+      clearAuthCredentialFields();
+    }
+    if (els.authStatus) els.authStatus.textContent = remember ? "Akses disahkan. Login disimpan." : "Akses disahkan.";
     renderAuthGate();
     await startApplicationData();
   } catch (error) {
@@ -328,12 +393,22 @@ async function logoutAdmin() {
   state.auth = { authRequired: true, authenticated: false, setupRequired: false, csrfToken: "" };
   state.appStarted = false;
   renderAuthGate();
+  hydrateRememberedAuthFields();
 }
 
 function bindAuthGate() {
   els.authSubmitButton?.addEventListener("click", submitAuth);
+  els.adminUsername?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") submitAuth();
+  });
   els.adminPassword?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") submitAuth();
+  });
+  els.adminRememberMe?.addEventListener("change", () => {
+    if (!els.adminRememberMe.checked) {
+      clearRememberedAuth();
+      clearAuthCredentialFields();
+    }
   });
   els.logoutButton?.addEventListener("click", logoutAdmin);
 }
