@@ -35,6 +35,9 @@ const maxPostingPerDay = 25;
 const threadPostMaxChars = 300;
 const threadPostTargetMinChars = 250;
 const threadPostTargetMaxChars = 295;
+const publisherPreflightEnabled = process.env.THREADSME_PUBLISH_PREFLIGHT !== "false";
+const publisherPreflightAiEnabled = process.env.THREADSME_PUBLISH_PREFLIGHT_AI !== "false";
+const publisherPreflightMinScore = Math.max(70, Math.min(Number(process.env.THREADSME_PUBLISH_PREFLIGHT_MIN_SCORE || 82), 95));
 const autoProductResolveLimit = Math.max(1, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_LIMIT || 8), 25));
 const autoProductMinimumConfidence = Math.max(40, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_CONFIDENCE || 62), 95));
 const autoQualityRegenerateLimit = Math.max(0, Math.min(Number(process.env.THREADSME_AUTO_REGENERATE_LIMIT || 25), 25));
@@ -1324,6 +1327,37 @@ async function publishScheduleNumber(number, { force = false, config = null, has
   }
 
   const startedAt = `${malaysiaNow()} GMT+8`;
+  const preflight = await runPublisherPreflight(number, {
+    scheduleData,
+    statusData,
+    config: threadsConfig,
+  });
+  if (!preflight.allow) {
+    await appendPublishLog({
+      number,
+      slot: post.slot,
+      mode: threadsConfig.dryRun ? "dry-run" : "live",
+      status: preflight.retryable ? "preflight_waiting" : "preflight_blocked",
+      startedAt,
+      finishedAt: `${malaysiaNow()} GMT+8`,
+      error: preflight.reason,
+      preflight: {
+        status: preflight.status,
+        localScore: preflight.localReport?.score ?? null,
+        aiScore: preflight.aiReport?.score ?? null,
+        aiChecked: Boolean(preflight.aiReport?.checked),
+        regenerated: preflight.regenerated?.updatedNumbers || [],
+      },
+    });
+    return {
+      skipped: true,
+      reason: preflight.reason,
+      number,
+      preflight,
+      status: preflight.statusData || await readJsonFile(statusFile, {}),
+    };
+  }
+
   try {
     const result = await publishThreadSeries(number, post, threadsConfig);
     await appendPublishLog({
@@ -1334,12 +1368,19 @@ async function publishScheduleNumber(number, { force = false, config = null, has
       startedAt,
       finishedAt: `${malaysiaNow()} GMT+8`,
       result,
+      preflight: {
+        status: preflight.status,
+        localScore: preflight.localReport?.score ?? null,
+        aiScore: preflight.aiReport?.score ?? null,
+        aiChecked: Boolean(preflight.aiReport?.checked),
+        regenerated: preflight.regenerated?.updatedNumbers || [],
+      },
     });
 
     if (!result.dryRun) {
       const latestStatus = await readJsonFile(statusFile, {});
       const updatedStatus = await markPublishSuccess(latestStatus, number, result, publisherConfig);
-      return { ok: true, number, result, status: updatedStatus };
+      return { ok: true, number, result, preflight, status: updatedStatus };
     }
 
     const latestStatus = await readJsonFile(statusFile, {});
@@ -1351,7 +1392,7 @@ async function publishScheduleNumber(number, { force = false, config = null, has
       lastPublishDryRunAt: `${malaysiaNow()} GMT+8`,
     };
     await writeJsonFile(statusFile, updatedStatus);
-    return { ok: true, number, result, status: updatedStatus };
+    return { ok: true, number, result, preflight, status: updatedStatus };
   } catch (error) {
     await appendPublishLog({
       number,
@@ -1833,6 +1874,506 @@ function auditStoryQuality(version, input, affiliateLink) {
     reasons: hardIssues,
     matchedProductTokens,
     reviewedAt: `${malaysiaNow()} GMT+8`,
+  };
+}
+
+function buildPublisherPreflightLocal(number, post, scheduleData, statusData) {
+  const productTitle = String(post.productTitle || "").trim();
+  const productCategory = String(post.productCategory || "").trim() || inferProductCategoryFromText(
+    [post.main, post.reply1, post.reply2, post.generatedLabel, post.imageUrl].filter(Boolean).join(" "),
+  );
+  const affiliateLink = String(post.affiliateLink || scheduleData.affiliate_link || "").trim();
+  const series = getThreadSeries(post);
+  const checks = [];
+  const hardReasons = [];
+  const addCheck = (key, label, passed, detail = "", severity = "hard") => {
+    const check = { key, label, passed: Boolean(passed), detail, severity };
+    checks.push(check);
+    if (!check.passed && severity === "hard") hardReasons.push(detail || label);
+  };
+
+  const scheduledOk = uniqueSortedNumbers(statusData.scheduled).includes(number);
+  addCheck("scheduled", "Siri berada dalam Pending scheduled", scheduledOk, "Siri belum berada dalam queue Pending.");
+
+  const completeOk = series.every((item) => item.text);
+  addCheck("complete", "POST UTAMA, REPLY 1 dan REPLY 2 lengkap", completeOk, "Ada bahagian post yang kosong.");
+
+  const lengths = series.map((item) => item.text.length);
+  const maxLengthOk = lengths.every((length) => length > 0 && length <= threadPostMaxChars);
+  addCheck("max_length", `Setiap post <=${threadPostMaxChars} aksara`, maxLengthOk, `Ada post melebihi ${threadPostMaxChars} aksara.`);
+
+  const targetLengthOk = lengths.every(
+    (length) => length >= threadPostTargetMinChars && length <= threadPostTargetMaxChars,
+  );
+  addCheck(
+    "target_length",
+    `Setiap post manfaatkan ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`,
+    targetLengthOk,
+    `Ada post belum berada dalam sasaran ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara.`,
+  );
+
+  const affiliateOk = affiliateLink ? String(post.reply2 || "").trim().endsWith(affiliateLink) : /https?:\/\/\S+$/i.test(String(post.reply2 || ""));
+  addCheck("affiliate", "Reply 2 tamat dengan link affiliate tepat", affiliateOk, "Reply 2 tidak tamat dengan link affiliate.");
+
+  const productTitleOk = isUsefulProductTitle(productTitle);
+  addCheck("product_title", "Tajuk produk sebenar jelas", productTitleOk, "Tajuk produk belum cukup jelas untuk pembaca.");
+
+  const productVerifiedOk = productTitleOk && (post.productVerified !== false || shouldAutopilotVerifyProduct(productTitle, post));
+  addCheck("product_verified", "Produk disahkan oleh Product Intel/DeepSeek", productVerifiedOk, "Produk belum cukup confidence untuk autopilot publish.");
+
+  const quality = auditStoryQuality(post, { productTitle, productCategory, affiliateLink }, affiliateLink);
+  for (const check of quality.checks || []) {
+    checks.push({
+      key: `quality_${check.key}`,
+      label: check.label,
+      passed: Boolean(check.passed),
+      detail: check.passed ? "" : check.label,
+      severity: check.key === "target_length" ? "hard" : "soft",
+    });
+  }
+  if (quality.status !== "passed") {
+    hardReasons.push(...(quality.reasons || ["Quality Gate belum lulus."]));
+  }
+
+  const passedCount = checks.filter((check) => check.passed).length;
+  const score = checks.length ? Math.round((passedCount / checks.length) * 100) : 0;
+  return {
+    status: hardReasons.length ? "blocked" : "passed",
+    allow: hardReasons.length === 0,
+    score,
+    checks,
+    reasons: [...new Set(hardReasons)].slice(0, 8),
+    lengths,
+    productTitle,
+    productCategory,
+    affiliateLink,
+    quality,
+  };
+}
+
+async function askDeepSeekPublisherPreflight({ number, post, localReport }) {
+  if (!publisherPreflightAiEnabled) {
+    return {
+      checked: false,
+      allow: true,
+      status: "ai_disabled",
+      score: localReport.score,
+      reasons: ["DeepSeek preflight dimatikan melalui konfigurasi."],
+      checks: [],
+    };
+  }
+
+  let apiKey = "";
+  try {
+    apiKey = await getApiKey();
+  } catch {
+    apiKey = "";
+  }
+  if (!apiKey) {
+    return {
+      checked: false,
+      allow: false,
+      retryable: true,
+      status: "waiting_ai",
+      score: localReport.score,
+      reasons: ["DeepSeek API key tiada. Live publish ditahan sehingga preflight AI boleh berjalan."],
+      checks: [],
+    };
+  }
+
+  const payload = {
+    number,
+    productTitle: localReport.productTitle,
+    productCategory: localReport.productCategory,
+    affiliateLink: localReport.affiliateLink,
+    postLengths: localReport.lengths,
+    qualityChecks: localReport.quality?.checks || [],
+    text: {
+      main: post.main,
+      reply1: post.reply1,
+      reply2: post.reply2,
+    },
+  };
+
+  try {
+    const response = await fetch(deepseekUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "deepseek-v4-flash",
+        messages: [
+          {
+            role: "system",
+            content: [
+              "Anda ialah final QA publisher untuk ThreadsMe, sistem affiliate Threads Malaysia.",
+              "Tugas anda ialah semak sama ada siri 3 post ini selamat dan layak dipublish public.",
+              "Nilai relevansi produk, hook manusia, deep storytelling, Bahasa Melayu Malaysia natural, soft-sell, claim tidak pelik, tidak spam, dan link affiliate tepat di hujung Reply 2.",
+              "Tahan jika story lari daripada produk, terlalu generik, claim berlebihan, nampak scammy, ada typo mengganggu, atau tidak memberi manfaat kepada netizen Malaysia.",
+              "Pulangkan JSON sahaja.",
+            ].join("\n"),
+          },
+          {
+            role: "user",
+            content: [
+              "Semak siri ini sebelum publish:",
+              JSON.stringify(payload, null, 2),
+              "",
+              'Format wajib: {"decision":"allow|hold","score":0,"confidence":0,"checks":[{"key":"","passed":true,"note":""}],"reasons":[],"summary":""}',
+            ].join("\n"),
+          },
+        ],
+        thinking: { type: "disabled" },
+        response_format: { type: "json_object" },
+        temperature: 0.12,
+        max_tokens: 1800,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    const raw = await response.text();
+    if (!response.ok) {
+      return {
+        checked: false,
+        allow: false,
+        retryable: true,
+        status: "ai_error",
+        score: localReport.score,
+        reasons: [`DeepSeek preflight gagal ${response.status}: ${raw.slice(0, 180)}`],
+        checks: [],
+      };
+    }
+
+    const data = JSON.parse(raw);
+    const parsed = parseJsonObjectFromText(data.choices?.[0]?.message?.content || "{}");
+    const score = normalizeDeepSeekPercent(parsed.score);
+    const decision = String(parsed.decision || "").toLowerCase() === "allow" ? "allow" : "hold";
+    const checks = Array.isArray(parsed.checks)
+      ? parsed.checks.slice(0, 10).map((check) => ({
+          key: String(check.key || "deepseek").slice(0, 80),
+          label: String(check.key || "DeepSeek QA").slice(0, 120),
+          passed: Boolean(check.passed),
+          detail: String(check.note || "").slice(0, 220),
+          severity: "hard",
+        }))
+      : [];
+    const reasons = Array.isArray(parsed.reasons)
+      ? parsed.reasons.map((reason) => String(reason || "").trim()).filter(Boolean).slice(0, 8)
+      : [];
+    const allow = decision === "allow" && score >= publisherPreflightMinScore && checks.every((check) => check.passed !== false);
+    return {
+      checked: true,
+      allow,
+      retryable: false,
+      status: allow ? "passed_ai" : "blocked_ai",
+      decision,
+      score,
+      confidence: normalizeDeepSeekPercent(parsed.confidence || score),
+      checks,
+      reasons: reasons.length
+        ? reasons
+        : allow
+          ? []
+          : [`DeepSeek score ${score}, bawah minimum ${publisherPreflightMinScore}.`],
+      summary: String(parsed.summary || "").slice(0, 260),
+      usage: data.usage || null,
+    };
+  } catch (error) {
+    return {
+      checked: false,
+      allow: false,
+      retryable: true,
+      status: "ai_error",
+      score: localReport.score,
+      reasons: [`DeepSeek preflight error: ${error.message}`],
+      checks: [],
+    };
+  }
+}
+
+function mergePreflightChecks(localReport, aiReport) {
+  const localChecks = (localReport.checks || []).map((check) => ({
+    key: check.key,
+    label: check.label,
+    passed: Boolean(check.passed),
+    detail: check.detail || "",
+    layer: "local",
+  }));
+  const aiChecks = (aiReport.checks || []).map((check) => ({
+    key: check.key.startsWith("deepseek_") ? check.key : `deepseek_${check.key}`,
+    label: check.label || check.key || "DeepSeek QA",
+    passed: Boolean(check.passed),
+    detail: check.detail || "",
+    layer: "deepseek",
+  }));
+  return [...localChecks, ...aiChecks].slice(0, 24);
+}
+
+function normalizeDeepSeekPercent(value) {
+  const raw = String(value ?? "").trim();
+  const matched = raw.match(/\d+(?:\.\d+)?/);
+  const numeric = Number(matched ? matched[0] : value || 0);
+  if (!Number.isFinite(numeric)) return 0;
+  if (numeric > 0 && numeric <= 10) return Math.round(numeric * 10);
+  return Math.round(Math.max(0, Math.min(numeric, 100)));
+}
+
+function markPostPreflight(post, status, localReport, aiReport, reasons = []) {
+  const checkedAt = `${malaysiaNow()} GMT+8`;
+  const score = aiReport?.checked ? Math.min(localReport.score, aiReport.score) : localReport.score;
+  post.publishPreflightStatus = status;
+  post.publishPreflightScore = score;
+  post.publishPreflightAt = checkedAt;
+  post.publishPreflightReasons = reasons.slice(0, 10);
+  post.publishPreflightChecks = mergePreflightChecks(localReport, aiReport || { checks: [] });
+  post.publishPreflightAi = {
+    enabled: publisherPreflightAiEnabled,
+    checked: Boolean(aiReport?.checked),
+    status: aiReport?.status || "not_checked",
+    decision: aiReport?.decision || "",
+    score: aiReport?.score ?? null,
+    confidence: aiReport?.confidence ?? null,
+    summary: aiReport?.summary || "",
+    retryable: Boolean(aiReport?.retryable),
+  };
+  post.publishPreflightStrategy = [
+    "Quality Gate tempatan",
+    "Product Intel produk",
+    "DeepSeek final QA sebelum publish",
+  ];
+  return checkedAt;
+}
+
+async function writePreflightStatus({ scheduleData, statusData, number, post, status, note, holdReview = false }) {
+  const publisher = statusData.publisher || {};
+  let nextStatus = {
+    ...statusData,
+    lastPublisherPreflightAt: post.publishPreflightAt || `${malaysiaNow()} GMT+8`,
+    lastPublisherPreflightNumber: number,
+    lastPublisherPreflightStatus: status,
+    lastPublisherPreflightNote: note,
+    systemStatus: status === "passed" ? "Publisher preflight - lulus" : "Publisher preflight - ditahan",
+    systemNote: note,
+  };
+
+  if (holdReview) {
+    post.qualityStatus = "review";
+    post.qualityScore = Math.min(Number(post.qualityScore || post.publishPreflightScore || 0), 64);
+    post.qualityReasons = post.publishPreflightReasons?.length
+      ? post.publishPreflightReasons
+      : ["Publisher Preflight tahan siri ini sebelum publish."];
+    const automation = buildAutomatedStatus(scheduleData, nextStatus, Date.now(), {
+      autoCompletePastSlots: false,
+      publisher,
+    });
+    nextStatus = {
+      ...automation.status,
+      lastPublisherPreflightAt: post.publishPreflightAt,
+      lastPublisherPreflightNumber: number,
+      lastPublisherPreflightStatus: status,
+      lastPublisherPreflightNote: note,
+      systemStatus: "Publisher preflight - ditahan",
+      systemNote: note,
+    };
+  }
+
+  await writeJsonFile(scheduleFile, scheduleData);
+  await writeJsonFile(statusFile, nextStatus);
+  await syncStoryRunsWithStatus(nextStatus, scheduleData);
+  return nextStatus;
+}
+
+async function runPublisherPreflight(number, { scheduleData, statusData, config }) {
+  if (!publisherPreflightEnabled) {
+    return {
+      allow: true,
+      status: "disabled",
+      reason: "Publisher preflight dimatikan.",
+      statusData,
+    };
+  }
+
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const post = posts[number - 1];
+  if (!post) throw new HttpError(404, `Siri ${number} tidak wujud dalam jadual.`);
+
+  let touched = false;
+  let runs = null;
+  const resolveCache = new Map();
+  if (post.source === "generated" && (!String(post.productTitle || "").trim() || post.productVerified === false)) {
+    const resolved = await resolveProductForPost(post, scheduleData, number, resolveCache);
+    touched = touched || Boolean(resolved.applied || resolved.tried);
+  }
+
+  let localReport = buildPublisherPreflightLocal(number, post, scheduleData, statusData);
+  let regenerated = { updatedNumbers: [], failedNumbers: [], fallbackCount: 0 };
+  if (!localReport.allow && post.source === "generated" && String(post.productTitle || "").trim() && post.productVerified !== false) {
+    post.qualityStatus = "review";
+    post.qualityReasons = localReport.reasons;
+    runs = await readStoryRuns();
+    regenerated = await autoRegenerateQualityPosts(scheduleData, runs, [number]);
+    if (regenerated.updatedNumbers.includes(number)) {
+      touched = true;
+      localReport = buildPublisherPreflightLocal(number, post, scheduleData, statusData);
+    }
+  }
+
+  let aiReport = {
+    checked: false,
+    allow: true,
+    status: "not_needed",
+    score: localReport.score,
+    reasons: [],
+    checks: [],
+  };
+  if (localReport.allow) {
+    aiReport = await askDeepSeekPublisherPreflight({ number, post, localReport });
+  }
+
+  const strictAiRequired = config.dryRun === false && publisherPreflightAiEnabled;
+  if (localReport.allow && aiReport.allow) {
+    markPostPreflight(post, aiReport.checked ? "passed_ai" : "passed_local", localReport, aiReport, []);
+    const note = aiReport.checked
+      ? `Siri ${number} lulus Publisher Preflight DeepSeek. Score ${aiReport.score}.`
+      : `Siri ${number} lulus Publisher Preflight tempatan.`;
+    if (runs && regenerated.updatedNumbers.length) await writeStoryRuns(runs);
+    const nextStatus = await writePreflightStatus({
+      scheduleData,
+      statusData,
+      number,
+      post,
+      status: post.publishPreflightStatus,
+      note,
+      holdReview: false,
+    });
+    return {
+      allow: true,
+      status: post.publishPreflightStatus,
+      reason: note,
+      localReport,
+      aiReport,
+      regenerated,
+      touched: true,
+      statusData: nextStatus,
+    };
+  }
+
+  if (localReport.allow && !aiReport.checked && strictAiRequired) {
+    const reasons = aiReport.reasons?.length ? aiReport.reasons : ["DeepSeek preflight belum dapat disahkan."];
+    markPostPreflight(post, "waiting_ai", localReport, aiReport, reasons);
+    const note = `Siri ${number} belum dipublish kerana Publisher Preflight menunggu DeepSeek. ${reasons[0]}`;
+    if (runs && regenerated.updatedNumbers.length) await writeStoryRuns(runs);
+    const nextStatus = await writePreflightStatus({
+      scheduleData,
+      statusData,
+      number,
+      post,
+      status: "waiting_ai",
+      note,
+      holdReview: false,
+    });
+    return {
+      allow: false,
+      retryable: true,
+      status: "waiting_ai",
+      reason: note,
+      localReport,
+      aiReport,
+      regenerated,
+      touched,
+      statusData: nextStatus,
+    };
+  }
+
+  if (localReport.allow && !aiReport.checked && !strictAiRequired) {
+    const reasons = aiReport.reasons?.length ? aiReport.reasons : ["DeepSeek preflight tidak disahkan, tetapi mod selamat membenarkan semakan tempatan."];
+    markPostPreflight(post, "passed_local", localReport, aiReport, reasons);
+    const note = `Siri ${number} lulus Publisher Preflight tempatan. ${reasons[0]}`;
+    if (runs && regenerated.updatedNumbers.length) await writeStoryRuns(runs);
+    const nextStatus = await writePreflightStatus({
+      scheduleData,
+      statusData,
+      number,
+      post,
+      status: "passed_local",
+      note,
+      holdReview: false,
+    });
+    return {
+      allow: true,
+      status: "passed_local",
+      reason: note,
+      localReport,
+      aiReport,
+      regenerated,
+      touched: true,
+      statusData: nextStatus,
+    };
+  }
+
+  const reasons = localReport.allow
+    ? aiReport.reasons || [`DeepSeek score bawah minimum ${publisherPreflightMinScore}.`]
+    : localReport.reasons;
+  markPostPreflight(post, localReport.allow ? "blocked_ai" : "blocked_local", localReport, aiReport, reasons);
+  const note = `Siri ${number} ditahan Publisher Preflight: ${reasons[0] || "Quality belum cukup selamat untuk publish."}`;
+  if (runs && regenerated.updatedNumbers.length) await writeStoryRuns(runs);
+  const nextStatus = await writePreflightStatus({
+    scheduleData,
+    statusData,
+    number,
+    post,
+    status: post.publishPreflightStatus,
+    note,
+    holdReview: true,
+  });
+  return {
+    allow: false,
+    retryable: false,
+    status: post.publishPreflightStatus,
+    reason: note,
+    localReport,
+    aiReport,
+    regenerated,
+    touched: true,
+    statusData: nextStatus,
+  };
+}
+
+function buildPublisherPreflightSummary(scheduleData, statusData) {
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const scheduled = uniqueSortedNumbers(statusData.scheduled);
+  const dueNumbers = scheduled.filter((number) => {
+    const post = posts[number - 1];
+    return post && parseScheduleSlot(post.slot).getTime() <= Date.now();
+  });
+  const statuses = posts.reduce((acc, post) => {
+    const status = post.publishPreflightStatus || "belum_semak";
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
+  const blockedNumbers = posts
+    .map((post, index) => ({ post, number: index + 1 }))
+    .filter(({ post }) => ["blocked_local", "blocked_ai", "waiting_ai"].includes(post.publishPreflightStatus))
+    .map(({ number }) => number);
+
+  return {
+    enabled: publisherPreflightEnabled,
+    aiEnabled: publisherPreflightAiEnabled,
+    minScore: publisherPreflightMinScore,
+    strategy: ["Quality Gate", "Product Intel", "DeepSeek final QA"],
+    lastAt: statusData.lastPublisherPreflightAt || "",
+    lastNumber: statusData.lastPublisherPreflightNumber || null,
+    lastStatus: statusData.lastPublisherPreflightStatus || "",
+    lastNote: statusData.lastPublisherPreflightNote || "",
+    dueNumbers,
+    dueCount: dueNumbers.length,
+    passedCount: (statuses.passed_ai || 0) + (statuses.passed_local || 0),
+    blockedCount: blockedNumbers.length,
+    blockedNumbers: blockedNumbers.slice(0, 25),
+    waitingAiCount: statuses.waiting_ai || 0,
   };
 }
 
@@ -3548,6 +4089,7 @@ async function getPublisherStatus() {
   return {
     config: sanitizeThreadsConfig(config, hasToken),
     dueNumbers,
+    preflight: buildPublisherPreflightSummary(scheduleData, statusData),
     lastEntries: log.slice(-20).reverse(),
   };
 }
@@ -3768,6 +4310,7 @@ const server = createServer(async (req, res) => {
           lastAutomationAt: statusData.lastAutomationAt || "",
         },
         publisher: sanitizeThreadsConfig(config, hasToken),
+        publisherPreflight: buildPublisherPreflightSummary(scheduleData, statusData),
         audit: productAuditSummary(scheduleData, runs),
         autoAudit: autoAudit.summary,
       });

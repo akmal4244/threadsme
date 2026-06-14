@@ -35,6 +35,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, `Disediakan`, dan `Perlu Semak`.
 - Auto promote `Blocked` kepada `Pending` bila slot schedule kosong.
 - Auto Audit Produk berjalan bersama sync automation untuk sahkan produk secara autopilot, auto-regenerate story yang tidak selari, dan guard output berisiko.
+- Publisher Preflight berjalan sebelum publish live: Quality Gate tempatan, Product Intel, dan DeepSeek final QA mesti lulus sebelum Threads API dipanggil.
 - Pusat `Tindakan Saya` memaparkan ringkasan autopilot; input Akmal hanya optional melalui butang edit/override.
 - Product Audit untuk baiki siri lama yang tiada tajuk produk atau story tidak relevan.
 - Product Audit memaparkan ayat semasa `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` untuk semakan sebelum regenerate.
@@ -42,7 +43,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Product Intelligence untuk cuba ekstrak tajuk/kategori daripada link Shopee, affiliate, gambar, nota, dan DeepSeek.
 - Auto Audit boleh auto isi dan auto sahkan metadata produk daripada link affiliate Shopee, gambar, nota, dan DeepSeek jika confidence cukup.
 - Product Intel cache runtime supaya link affiliate yang sama tidak perlu disemak berulang selepas restart.
-- Automation Health untuk semak AI server, DeepSeek key, Pending 25/25, Blocked, publisher, dan audit issue.
+- Automation Health untuk semak AI server, DeepSeek key, Pending 25/25, Blocked, publisher, Preflight, dan audit issue.
 - Preview Netizen untuk semak rasa manusia sebelum publish.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
 - Mode single-user local tanpa login secara default, dengan admin auth optional jika mahu public deploy.
@@ -274,8 +275,11 @@ flowchart TD
   D --> E["Pending maksimum 25 aktif"]
   E --> F["Blocked menunggu slot kosong"]
   F --> G["Auto promote kepada Pending"]
-  E --> H["Publisher dry-run atau live Threads API"]
-  H --> I["Status Lulus atau Gagal"]
+  E --> H["Publisher Preflight DeepSeek"]
+  H --> J{"Lulus?"}
+  J -->|Ya| K["Publisher dry-run atau live Threads API"]
+  J -->|Tidak| L["Tahan sebagai Perlu Semak"]
+  K --> I["Status Lulus atau Gagal"]
 ```
 
 ## Prinsip Reka Bentuk
@@ -293,6 +297,12 @@ ThreadsMe kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas ThreadsMe berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.9.8
+
+- Tambah `Publisher Preflight` sebelum publish live: Quality Gate tempatan, Product Intel, dan DeepSeek final QA.
+- Publisher akan tahan siri secara automatik sebagai `Perlu Semak` jika DeepSeek mengesan story lari produk, claim pelik, BM tidak natural, CTA/link bermasalah, atau score bawah minimum.
+- Automation Health dan Publisher Status kini memaparkan ringkasan Preflight supaya status sebelum posting boleh dipantau.
 
 ### v0.9.7
 

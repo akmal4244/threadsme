@@ -24,6 +24,8 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Auto Audit boleh auto-regenerate sehingga `25` siri review dalam satu batch melalui `THREADSME_AUTO_REGENERATE_LIMIT`.
 - AI server berjalan di `http://127.0.0.1:8788`.
 - Model AI semasa ialah `deepseek-v4-flash`.
+- Publisher Preflight mesti aktif sebelum posting live. Strategi: Quality Gate tempatan, Product Intel, kemudian DeepSeek final QA.
+- Minimum score Publisher Preflight DeepSeek ialah `82` secara default melalui `THREADSME_PUBLISH_PREFLIGHT_MIN_SCORE`.
 - Publisher Threads default mesti kekal `Dry-run` sehingga token dan User ID disahkan.
 - Token dan API key tidak boleh di-commit ke repo.
 - Cookie Shopee jika digunakan mesti disimpan sebagai env `SHOPEE_COOKIE` atau `work/private/shopee-cookie.txt`, tidak boleh di-commit.
@@ -45,6 +47,8 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Jika produk `story_inferred` tetapi confidence DeepSeek/Product Intel cukup, ThreadsMe boleh sahkan secara autopilot dan teruskan ke Quality Gate.
 - Jika confidence rendah atau tajuk kosong, ThreadsMe guard siri secara automatik; Akmal tidak perlu sahkan manual kecuali mahu edit/override.
 - Jika produk sudah sah tetapi story tidak cukup relevan, ThreadsMe mesti cuba auto-regenerate dahulu sebelum menganggapnya isu manual.
+- Sebelum post dihantar live ke Threads API, Publisher Preflight mesti semak semula relevansi produk, panjang 250-295 aksara, link affiliate, BM Malaysia, claim, dan rasa manusia menggunakan DeepSeek.
+- Jika Publisher Preflight gagal, siri ditahan sebagai `Perlu Semak` atau `waiting_ai` tanpa publish public.
 - `Tajuk produk` masih boleh diedit manual sebagai pilihan; simpan/regenerate daripada Product Audit dianggap `manual_verified`.
 - Link gambar Shopee sahaja tidak cukup untuk kenal produk kerana URL imej tidak semestinya membawa nama produk.
 - Setiap siri mesti ada tiga bahagian:

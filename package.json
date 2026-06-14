@@ -1,6 +1,6 @@
 {
   "name": "threadsme",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "private": false,
   "type": "module",
   "description": "ThreadsMe untuk jana story, jadual Threads, dan automasi publisher.",

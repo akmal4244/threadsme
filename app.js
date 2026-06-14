@@ -27,6 +27,7 @@ const state = {
   publisher: {
     config: null,
     dueNumbers: [],
+    preflight: null,
     lastEntries: [],
   },
   shopeeCookie: { hasCookie: false, source: "none", file: "" },
@@ -1113,6 +1114,7 @@ function renderAutomationHealth() {
   const health = state.automationHealth || {};
   const queue = health.queue || {};
   const publisher = health.publisher || state.publisher.config || {};
+  const preflight = health.publisherPreflight || state.publisher.preflight || {};
   const audit = health.audit || state.productAudit.summary || {};
   const autoAudit = health.autoAudit || state.autoAudit.summary || {};
   const cards = [
@@ -1161,6 +1163,14 @@ function renderAutomationHealth() {
       value: `${autoAudit.autoPassed || 0} auto`,
       detail: `${autoAudit.autoGuarded || 0} diguard, edit pilihan`,
       tone: autoAudit.regenerateReady ? "warn" : "good",
+    },
+    {
+      label: "Preflight",
+      value: preflight.enabled === false ? "Off" : preflight.aiEnabled === false ? "Local" : "DeepSeek",
+      detail: preflight.lastAt
+        ? `${preflight.lastStatus || "semak"} | score min ${preflight.minScore || 82}`
+        : `Final QA sebelum publish | score min ${preflight.minScore || 82}`,
+      tone: preflight.blockedCount || preflight.waitingAiCount ? "warn" : "good",
     },
     {
       label: "Publisher",
@@ -1505,6 +1515,7 @@ function applyPublisherData(data = {}) {
   state.publisher = {
     config: data.config || state.publisher.config || null,
     dueNumbers: uniqueNumbers(data.dueNumbers),
+    preflight: data.preflight || state.publisher.preflight || null,
     lastEntries: Array.isArray(data.lastEntries) ? data.lastEntries : [],
   };
 }
@@ -1520,6 +1531,7 @@ async function loadPublisherStatus() {
     state.publisher = {
       config: { enabled: false, dryRun: true, hasToken: false, liveReady: false },
       dueNumbers: [],
+      preflight: null,
       lastEntries: [],
     };
   }
@@ -1609,6 +1621,7 @@ function renderPublisher() {
   const selectedPost = state.posts[state.selectedIndex];
   const selectedStatus = selectedPost ? getStatus(selectedPost, state.selectedIndex) : "-";
   const mode = config.liveReady ? "Live sedia" : config.dryRun ? "Mod selamat" : "Belum lengkap";
+  const preflight = state.publisher.preflight || {};
 
   els.publisherModeBadge.textContent = mode;
   els.publisherModeBadge.className = config.liveReady ? "live" : config.dryRun ? "dry" : "warn";
@@ -1624,7 +1637,9 @@ function renderPublisher() {
   els.publisherTokenText.textContent = config.hasToken ? "Ada" : "Tiada";
   els.publisherSelectedText.textContent = selectedPost ? `Siri ${selectedNumber} (${statusLabel(selectedStatus)})` : "-";
   els.publisherHelpText.textContent = config.liveReady
-    ? "Live aktif. Siri due akan dihantar melalui Threads API dan ditanda Lulus selepas berjaya."
+    ? preflight.lastAt
+      ? `Live aktif. Preflight terakhir: ${preflight.lastStatus || "semak"} untuk Siri ${preflight.lastNumber || "-"} - ${preflight.lastNote || "DeepSeek final QA aktif."}`
+      : "Live aktif. Setiap siri due mesti lulus Publisher Preflight DeepSeek sebelum Threads API dipanggil."
     : "Mod selamat aktif. Tiada post public dihantar sehingga User ID dan token Threads lengkap.";
 
   if (els.dashboardPublisherMode && els.dashboardPublisherNote) {
@@ -1669,14 +1684,29 @@ function renderPublisher() {
   const rows = entries.map((entry) => {
     const row = document.createElement("div");
     row.className = `publisher-log-row ${entry.status || "dry_run"}`;
-    const label = entry.status === "published" ? "Lulus" : entry.status === "failed" ? "Gagal" : "Mod selamat";
+    const label = entry.status === "published"
+      ? "Lulus"
+      : entry.status === "failed"
+        ? "Gagal"
+        : entry.status === "preflight_blocked"
+          ? "Preflight tahan"
+          : entry.status === "preflight_waiting"
+            ? "Tunggu AI"
+            : "Mod selamat";
     const modeText = entry.mode === "dry-run" ? "mod selamat" : entry.mode || "mod selamat";
     const details = makeTextElement("span", "", `${label} - ${modeText}`);
     details.append(makeTextElement("small", "", entry.finishedAt || entry.createdAt || ""));
     row.append(
       makeTextElement("strong", "", `Siri ${entry.number || "-"}`),
       details,
-      makeStatusBadge(entry.status === "failed" ? "failed" : entry.status === "published" ? "passed" : "pending", label),
+      makeStatusBadge(
+        entry.status === "failed" || entry.status === "preflight_blocked"
+          ? "failed"
+          : entry.status === "published"
+            ? "passed"
+            : "pending",
+        label,
+      ),
     );
     if (entry.error) {
       const error = document.createElement("em");
