@@ -56,9 +56,10 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 
 | Fail | Fungsi |
 | --- | --- |
-| `threads_flexi_marble_schedule.json` | Jadual semua siri posting, slot, copy, affiliate link, dan metadata produk. |
-| `status.json` | Runtime status queue: scheduled, posted, failed, remaining, publisher config ringkas. |
-| `story-runs.json` | Rekod output AI dan metadata run. |
+| `threads_flexi_marble_schedule.json` | Snapshot jadual contoh/legacy untuk fallback static. |
+| `status.json` | Snapshot status queue contoh/legacy untuk fallback static. |
+| `story-runs.json` | Snapshot rekod output AI contoh/legacy untuk fallback static. |
+| `work/runtime/threads-schedule.json` | Runtime jadual aktif untuk semua siri posting, slot, copy, affiliate link, dan metadata produk. |
 | `work/runtime/status.json` | Runtime status queue aktif yang dikemas kini automasi. |
 | `work/runtime/story-runs.json` | Runtime story run aktif. |
 | `work/runtime/publish-log.json` | Runtime log publisher aktif. |
@@ -85,6 +86,7 @@ Snapshot ini dibuat pada `2026-06-14` dan boleh berubah apabila automasi berjala
 - Gunakan sidebar seperti sistem pentadbir, bukan landing page.
 - Modul mesti dipisahkan: Ringkasan, Jana Story, Jadual Threads, Audit Produk, Automasi Live.
 - Status automation mesti sentiasa jelas pada pengguna.
+- Audit Produk mesti paparkan ayat semasa `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` supaya user boleh semak copywriting sebelum regenerate.
 - Gunakan gaya Kumo UI dan taste-skill sebagai arah visual: surface hierarchy, token warna semantik, spacing kemas, dan micro-motion ringan.
 
 ## Keutamaan Naik Taraf Seterusnya

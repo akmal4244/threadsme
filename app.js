@@ -101,6 +101,8 @@ const els = {
   auditProductCategory: document.querySelector("#auditProductCategory"),
   auditAffiliateLink: document.querySelector("#auditAffiliateLink"),
   auditNotes: document.querySelector("#auditNotes"),
+  auditCopyMeta: document.querySelector("#auditCopyMeta"),
+  auditCopyPreview: document.querySelector("#auditCopyPreview"),
   auditActionStatus: document.querySelector("#auditActionStatus"),
   auditSaveMetadataButton: document.querySelector("#auditSaveMetadataButton"),
   auditRegenerateButton: document.querySelector("#auditRegenerateButton"),
@@ -370,7 +372,7 @@ function getCalendarDays() {
 
 function calendarHealth(day) {
   const total = day.posts.length;
-  const failedOrIssue = (day.counts.failed || 0) + (day.counts.issue || 0);
+  const failedOrIssue = (day.counts.failed || 0) + (day.counts.issue || 0) + (day.counts.review || 0);
   if (total === DAILY_POSTING_TARGET && failedOrIssue === 0) {
     return { label: `Cukup ${DAILY_POSTING_TARGET}`, className: "healthy" };
   }
@@ -889,7 +891,12 @@ function renderProductAudit() {
         state.productAudit.error || "Quality Gate tidak jumpa batch lama yang perlu dibaiki sekarang.",
       ),
     );
+    renderAuditCopyPreview(null);
     return;
+  }
+
+  if (!String(els.auditNumbers?.value || "").trim()) {
+    populateAuditForm(items[0]);
   }
 
   els.auditIssueList.replaceChildren(
@@ -906,15 +913,65 @@ function renderProductAudit() {
         makeStatusBadge(item.qualityStatus === "review" ? "review" : "issue", item.issue || "Semak"),
       );
       button.addEventListener("click", () => {
-        els.auditNumbers.value = String(item.number);
-        els.auditProductTitle.value = item.productTitle || "";
-        els.auditProductCategory.value = item.productCategory || "";
-        els.auditAffiliateLink.value = item.affiliateLink || state.affiliateLink || "";
-        state.selectedIndex = Math.max(0, item.number - 1);
-        state.selectedCalendarDate = getSlotDayKey(state.posts[state.selectedIndex]?.slot);
+        populateAuditForm(item);
         render();
       });
       return button;
+    }),
+  );
+
+  const selectedNumber = Number(String(els.auditNumbers?.value || "").match(/\d+/)?.[0] || 0);
+  if (selectedNumber) {
+    const selectedItem = items.find((item) => item.number === selectedNumber);
+    if (selectedItem) renderAuditCopyPreview(selectedItem);
+  }
+}
+
+function populateAuditForm(item) {
+  if (!item) return;
+  els.auditNumbers.value = String(item.number);
+  els.auditProductTitle.value = item.productTitle || "";
+  els.auditProductCategory.value = item.productCategory || "";
+  els.auditAffiliateLink.value = item.affiliateLink || state.affiliateLink || "";
+  state.selectedIndex = Math.max(0, item.number - 1);
+  state.selectedCalendarDate = getSlotDayKey(state.posts[state.selectedIndex]?.slot);
+  renderAuditCopyPreview(item);
+}
+
+function renderAuditCopyPreview(item) {
+  if (!els.auditCopyPreview || !els.auditCopyMeta) return;
+  if (!item) {
+    els.auditCopyMeta.textContent = "Pilih satu siri";
+    els.auditCopyPreview.replaceChildren(
+      makeEmptyState(
+        "Belum pilih siri",
+        "Klik mana-mana isu di sebelah kiri untuk baca POST UTAMA, REPLY 1 dan REPLY 2 sebelum regenerate.",
+      ),
+    );
+    return;
+  }
+
+  const threadParts = [
+    ["POST UTAMA", item.main],
+    ["REPLY 1", item.reply1],
+    ["REPLY 2", item.reply2],
+  ];
+  els.auditCopyMeta.textContent = `Siri ${item.number} - ${item.slot || "Tiada jadual"}`;
+  els.auditCopyPreview.replaceChildren(
+    ...threadParts.map(([label, text]) => {
+      const copy = String(text || "").trim();
+      const article = document.createElement("article");
+      article.className = copy.length > 300 ? "audit-copy-card over-limit" : "audit-copy-card";
+      const header = document.createElement("header");
+      header.append(
+        makeTextElement("strong", "", label),
+        makeTextElement("small", "", `${copy.length}/300 aksara`),
+      );
+      article.append(
+        header,
+        makeTextElement("p", "", copy || "Tiada ayat untuk bahagian ini."),
+      );
+      return article;
     }),
   );
 }
@@ -1668,8 +1725,19 @@ function showView(viewName) {
 function bindNavigation() {
   els.navItems.forEach((button) => {
     button.addEventListener("click", () => {
-      showView(button.dataset.viewTarget);
+      const nextView = button.dataset.viewTarget;
+      if (nextView && window.location.hash !== `#${nextView}`) {
+        history.replaceState(null, "", `#${nextView}`);
+      }
+      showView(nextView);
     });
+  });
+
+  window.addEventListener("hashchange", () => {
+    const viewName = window.location.hash.replace("#", "");
+    if (viewName && Array.from(els.pagePanels).some((panel) => panel.dataset.view === viewName)) {
+      showView(viewName);
+    }
   });
 }
 
@@ -1803,6 +1871,10 @@ function bindTasteMotion() {
 async function boot() {
   if (els.creditYear) els.creditYear.textContent = String(new Date().getFullYear());
   bindActions();
+  const initialView = window.location.hash.replace("#", "");
+  if (initialView && Array.from(els.pagePanels).some((panel) => panel.dataset.view === initialView)) {
+    showView(initialView);
+  }
   checkAiServer();
   await refreshSystemData();
   bindRevealMotion();

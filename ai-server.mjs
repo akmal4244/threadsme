@@ -9,9 +9,10 @@ const runtimeRoot = process.env.THREADSME_RUNTIME_DIR || path.join(workspaceRoot
 const defaultKeyFile = path.join(workspaceRoot, "work", "private", "deepseek.key");
 const keyFile = process.env.DEEPSEEK_API_KEY_FILE || defaultKeyFile;
 const legacyStoryRunsFile = path.join(here, "story-runs.json");
-const scheduleFile = path.join(here, "threads_flexi_marble_schedule.json");
+const legacyScheduleFile = path.join(here, "threads_flexi_marble_schedule.json");
 const legacyStatusFile = path.join(here, "status.json");
 const legacyPublishLogFile = path.join(here, "publish-log.json");
+const scheduleFile = process.env.THREADSME_SCHEDULE_FILE || path.join(runtimeRoot, "threads-schedule.json");
 const storyRunsFile = process.env.THREADSME_STORY_RUNS_FILE || path.join(runtimeRoot, "story-runs.json");
 const statusFile = process.env.THREADSME_STATUS_FILE || path.join(runtimeRoot, "status.json");
 const publishLogFile = process.env.THREADSME_PUBLISH_LOG_FILE || path.join(runtimeRoot, "publish-log.json");
@@ -261,6 +262,12 @@ async function ensureRuntimeFile(runtimeFile, legacyFile, fallback) {
 }
 
 async function ensureRuntimeFiles() {
+  await ensureRuntimeFile(scheduleFile, legacyScheduleFile, {
+    timezone: "Asia/Kuala_Lumpur",
+    affiliate_link: "https://s.shopee.com.my/7VDqSOoKf3",
+    notes: "Runtime schedule ThreadsMe baru diwujudkan.",
+    posts: [],
+  });
   await ensureRuntimeFile(statusFile, legacyStatusFile, {
     systemStatus: "Automasi aktif",
     systemNote: "Runtime status ThreadsMe baru diwujudkan.",
@@ -1498,6 +1505,8 @@ function productAuditSummary(scheduleData, runs) {
   for (const run of runs) {
     for (const version of run.versions || []) {
       if (version.status === "review") {
+        const number = Number(version.scheduleNumber);
+        if (number && posts[number - 1]?.qualityStatus === "review") continue;
         runReviewItems.push({
           runId: run.id,
           versionId: version.id,
@@ -1547,6 +1556,9 @@ async function getProductAudit() {
         : post.qualityStatus === "review"
           ? "Perlu Semak Quality Gate"
           : "Had aksara / metadata",
+      main: post.main || "",
+      reply1: post.reply1 || "",
+      reply2: post.reply2 || "",
       snippet: String(post.main || "").slice(0, 180),
       qualityStatus: post.qualityStatus || "",
       qualityScore: post.qualityScore || null,

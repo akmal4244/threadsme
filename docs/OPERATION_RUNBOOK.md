@@ -69,6 +69,7 @@ Jika tajuk produk kosong, sistem mesti menolak generate.
 - Siri yang tidak cukup relevan akan ditahan sebagai `Perlu Semak`.
 - `Perlu Semak` tidak patut masuk Pending atau publisher live.
 - Guna menu `Audit Produk` untuk pilih batch seperti `26-35`, isi tajuk/kategori produk sebenar, kemudian klik `Simpan metadata` atau `Regenerate story`.
+- Bila pilih satu siri, semak panel `Ayat semasa untuk semakan` dahulu. Panel ini memaparkan `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` bersama kiraan aksara supaya copywriting lama boleh dinilai sebelum regenerate.
 - Selepas story dibaiki, automation sync seterusnya akan kira semula slot Pending.
 
 ## Runtime Data
@@ -76,12 +77,13 @@ Jika tajuk produk kosong, sistem mesti menolak generate.
 Runtime aktif berada dalam `work/runtime/`:
 
 ```text
+work/runtime/threads-schedule.json
 work/runtime/status.json
 work/runtime/story-runs.json
 work/runtime/publish-log.json
 ```
 
-Fail root `status.json` dan `story-runs.json` kekal sebagai snapshot/fallback static. Jangan risau jika `work/runtime/` berubah ketika server hidup; folder itu diabaikan git.
+Fail root `threads_flexi_marble_schedule.json`, `status.json` dan `story-runs.json` kekal sebagai snapshot/fallback static. Jangan risau jika `work/runtime/` berubah ketika server hidup; folder itu diabaikan git.
 
 ## Status Queue
 

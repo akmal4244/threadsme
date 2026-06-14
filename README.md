@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | ThreadsMe |
 | Repo slug | threadsme |
-| Versi | v0.9.0 |
+| Versi | v0.9.2 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -35,6 +35,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, `Disediakan`, dan `Perlu Semak`.
 - Auto promote `Blocked` kepada `Pending` bila slot schedule kosong.
 - Product Audit untuk baiki siri lama yang tiada tajuk produk atau story tidak relevan.
+- Product Audit memaparkan ayat semasa `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` untuk semakan sebelum regenerate.
 - Quality Gate sebelum story masuk jadual: relevansi produk, hook, BM Malaysia, claim, CTA, dan had 300 aksara.
 - Product Intelligence untuk cuba ekstrak tajuk/kategori daripada link Shopee, affiliate, gambar, atau nota.
 - Automation Health untuk semak AI server, DeepSeek key, Pending 25/25, Blocked, publisher, dan audit issue.
@@ -176,7 +177,8 @@ ThreadsMe menggunakan JSON file database supaya ringan dan mudah audit.
 
 | Fail | Fungsi |
 | --- | --- |
-| `threads_flexi_marble_schedule.json` | Senarai siri posting, slot jadual, CTA, dan affiliate link. |
+| `threads_flexi_marble_schedule.json` | Snapshot jadual contoh/legacy untuk fallback static. Runtime sebenar kini disalin ke `work/runtime/threads-schedule.json`. |
+| `work/runtime/threads-schedule.json` | Jadual aktif untuk siri posting, slot, CTA, affiliate link, dan metadata produk. Fail ini tidak di-commit. |
 | `status.json` | Snapshot status queue contoh/legacy untuk fallback static. Runtime sebenar kini disalin ke `work/runtime/status.json`. |
 | `story-runs.json` | Snapshot rekod output AI contoh/legacy untuk fallback static. Runtime sebenar kini disalin ke `work/runtime/story-runs.json`. |
 | `work/runtime/*.json` | Runtime database aktif untuk status, story runs, dan publish log. Fail ini tidak di-commit. |
@@ -213,6 +215,18 @@ ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jad
 
 ## Version Log
 
+### v0.9.2
+
+- Tambah preview ayat semasa dalam `Audit Produk` supaya siri lama boleh disemak sebelum metadata disimpan atau story regenerated.
+- API Product Audit kini memulangkan `main`, `reply1`, dan `reply2` penuh untuk semakan copywriting dalam GUI.
+- Kekalkan render preview audit menggunakan DOM selamat dan `textContent` supaya teks AI/user tidak memecahkan layout.
+
+### v0.9.1
+
+- Pindahkan schedule aktif ke `work/runtime/threads-schedule.json` supaya generate story tidak mengubah fail tracked repo.
+- Kalendar kini mengira `Perlu Semak` sebagai isu harian.
+- Product Audit tidak lagi double-count review item yang sama antara schedule dan story-runs.
+
 ### v0.9.0
 
 - Tukar nama sistem rasmi kepada ThreadsMe di UI, docs, env, aset, dan route localhost.
@@ -221,7 +235,7 @@ ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jad
 - Tambah `Quality Gate` sebelum story masuk jadual supaya output yang tidak relevan ditahan sebagai `Perlu Semak`.
 - Tambah `Product Intelligence` untuk cuba kenal pasti tajuk/kategori produk daripada link Shopee/affiliate/gambar/nota.
 - Tambah panel `Automation Health` dan `Preview Netizen`.
-- Pindahkan runtime JSON aktif ke `work/runtime/` supaya repo tidak kerap dirty kerana automation.
+- Pindahkan runtime JSON aktif termasuk schedule ke `work/runtime/` supaya repo tidak kerap dirty kerana automation.
 - Tukar render dinamik frontend kepada DOM builder + `textContent` untuk elak layout rosak oleh teks AI/user.
 
 ### v0.8.0

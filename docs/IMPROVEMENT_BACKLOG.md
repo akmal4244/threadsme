@@ -4,7 +4,7 @@ Fail ini menyimpan cadangan tambah baik yang sudah dikenal pasti supaya kerja se
 
 ## P0 - Kualiti Produk dan Story
 
-Status v0.9.0: asas `Product Audit`, `Quality Gate`, `Product Intelligence`, `Automation Health`, `Preview Netizen`, runtime `work/runtime/`, dan render DOM selamat sudah dibina. Backlog ini kini fokus kepada penambahbaikan selepas modul asas stabil.
+Status v0.9.2: asas `Product Audit`, preview ayat semasa, `Quality Gate`, `Product Intelligence`, `Automation Health`, `Preview Netizen`, runtime `work/runtime/` termasuk schedule aktif, dan render DOM selamat sudah dibina. Backlog ini kini fokus kepada penambahbaikan selepas modul asas stabil.
 
 ### Product Audit
 

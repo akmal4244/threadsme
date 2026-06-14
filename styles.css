@@ -1458,6 +1458,8 @@ h2 {
 }
 
 .audit-issue-row span {
+  display: grid;
+  gap: 3px;
   color: var(--kumo-subtle);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1486,6 +1488,85 @@ h2 {
   border-color: rgba(36, 99, 235, 0.32);
   background: var(--kumo-brand-soft);
   color: var(--kumo-brand);
+}
+
+.audit-copy-preview {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(36, 99, 235, 0.18);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.84), rgba(255, 255, 255, 0.92));
+  padding: 12px;
+}
+
+.mini-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mini-heading span {
+  color: var(--kumo-ink);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mini-heading small {
+  color: var(--kumo-subtle);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.audit-copy-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.audit-copy-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--kumo-hairline);
+  border-radius: var(--radius);
+  background: var(--kumo-surface);
+  padding: 11px;
+}
+
+.audit-copy-card.over-limit {
+  border-color: rgba(220, 38, 38, 0.32);
+  background: rgba(254, 242, 242, 0.72);
+}
+
+.audit-copy-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.audit-copy-card strong {
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.audit-copy-card small {
+  color: var(--kumo-subtle);
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.audit-copy-card p {
+  margin: 0;
+  color: var(--kumo-ink);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .generated-status-list {
@@ -1756,6 +1837,13 @@ h2 {
     align-items: start;
   }
 
+  .audit-issue-row span,
+  .audit-issue-row small {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
   .generated-actions {
     justify-content: flex-start;
   }
@@ -1863,6 +1951,21 @@ h2 {
     padding: 14px;
   }
 
+  .panel-heading,
+  .calendar-heading,
+  .compact-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .panel-heading span,
+  .calendar-heading span,
+  .compact-heading span {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
   .calendar-grid,
   .status-table {
     grid-template-columns: 1fr;
@@ -1875,6 +1978,18 @@ h2 {
   }
 
   .calendar-slot-copy small {
+    white-space: normal;
+  }
+
+  .mini-heading,
+  .audit-copy-card header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mini-heading small,
+  .audit-copy-card small {
+    text-align: left;
     white-space: normal;
   }
 
