@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { access, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
@@ -698,13 +698,30 @@ async function repairEmptyRuntimeSchedule() {
     readJsonFile(legacyScheduleFile, { posts: [] }),
   ]);
   const hasRuntimePosts = Array.isArray(scheduleData.posts) && scheduleData.posts.length > 0;
-  const legacyPosts = Array.isArray(legacySchedule.posts) ? legacySchedule.posts : [];
-  if (hasRuntimePosts || !legacyPosts.length || countStatusNumbers(statusData) === 0) return false;
+  if (hasRuntimePosts || countStatusNumbers(statusData) === 0) return false;
 
+  const candidates = [];
+  const legacyPosts = Array.isArray(legacySchedule.posts) ? legacySchedule.posts : [];
+  if (legacyPosts.length) candidates.push({ source: "legacy", data: legacySchedule, posts: legacyPosts.length });
+  try {
+    const backupEntries = await readdir(backupRoot, { withFileTypes: true });
+    for (const entry of backupEntries) {
+      if (!entry.isDirectory()) continue;
+      const candidateFile = path.join(backupRoot, entry.name, "threads-schedule.json");
+      const candidate = await readJsonFile(candidateFile, null);
+      const candidatePosts = Array.isArray(candidate?.posts) ? candidate.posts : [];
+      if (candidatePosts.length) candidates.push({ source: `backup:${entry.name}`, data: candidate, posts: candidatePosts.length });
+    }
+  } catch {
+    // Backup folder is optional; legacy schedule remains the fallback.
+  }
+  candidates.sort((a, b) => b.posts - a.posts);
+  const best = candidates[0];
+  if (!best?.posts) return false;
   await writeJsonFile(scheduleFile, {
-    ...legacySchedule,
+    ...best.data,
     restoredAt: `${malaysiaNow()} GMT+8`,
-    restoredReason: "Runtime schedule kosong tetapi status queue masih aktif. ThreadsMe pulihkan daripada legacy schedule lengkap.",
+    restoredReason: `Runtime schedule kosong tetapi status queue masih aktif. ThreadsMe pulihkan daripada ${best.source} (${best.posts} siri).`,
     previousEmptyScheduleMeta: {
       lastAutoProductAuditAt: scheduleData.lastAutoProductAuditAt || "",
       lastAutoProductAuditNote: scheduleData.lastAutoProductAuditNote || "",
@@ -2053,9 +2070,12 @@ function cleanThreadCopyForTarget(value) {
     .replace(/\bstart\b/gi, "mula")
     .replace(/\bthen\b/gi, "lepas tu")
     .replace(/([.!?])(?=[A-ZÀ-ÖØ-Þ])/g, "$1 ")
+    .replace(/\bKalau nak (?:tengok|survey|lihat),?\s*(?:klik\s*)?(?:sini|pilihan)?\s*:?\s+(?=[A-Z])/gi, "")
+    .replace(/\bKalau nak (?:tengok|survey|lihat)\.\s*/gi, "")
     .replace(/\bKalau nak cuba,\s+(?=[A-Z])/gi, "")
     .replace(/\bKalau nak,\s+(?=[A-Z])/gi, "")
     .replace(/\bKalau nak\.\s*/gi, "")
+    .replace(/\bboleh survey dulu\.\s+(?=Kalau|Jika|Untuk)/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -3373,6 +3393,39 @@ async function runAutoProductAudit() {
   const statusData = await readJsonFile(statusFile, {});
   const runs = await readStoryRuns();
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  if (!posts.length && (countStatusNumbers(statusData) > 0 || runs.some((run) => Array.isArray(run.versions) && run.versions.length))) {
+    return {
+      updated: 0,
+      protectedCount: 0,
+      passedCount: 0,
+      reviewCount: 0,
+      resolveTried: 0,
+      autoFilledCount: 0,
+      linkVerifiedCount: 0,
+      lowConfidenceCount: 0,
+      lengthAdjustedCount: 0,
+      lengthAdjustedNumbers: [],
+      autoRegeneratedCount: 0,
+      autoRegeneratedNumbers: [],
+      autoRegenerateFallbackCount: 0,
+      status: statusData,
+      productAudit: await getProductAudit(),
+      ok: false,
+      issueCount: 1,
+      actions: [
+        {
+          type: "runtime_repair_required",
+          label: "Jadual siri kosong",
+          description: "ThreadsMe mengesan status/story-runs masih aktif, tetapi threads-schedule.json kosong. Auto Audit dihentikan supaya data siri tidak dioverwrite.",
+        },
+      ],
+      summary: {
+        totalPosts: 0,
+        issueCount: 1,
+        targetLengthIssueCount: 0,
+      },
+    };
+  }
   const lengthAdjustedNumbers = [];
   let touched = 0;
   let protectedCount = 0;
