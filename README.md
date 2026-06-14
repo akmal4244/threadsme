@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | Sistem Marvis Threads Auto (SMTA) |
 | Repo slug | smta |
-| Versi | v0.7.9 |
+| Versi | v0.8.0 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -18,7 +18,7 @@ Nama rasmi sistem:
 
 - Jana siri 3 post Threads: `[POST UTAMA]`, `[REPLY 1]`, `[REPLY 2]`.
 - Storytelling deep storyline untuk netizen Malaysia.
-- Input produk melalui gambar upload, paste gambar, link gambar, nota produk, dan link affiliate.
+- Input produk melalui tajuk produk wajib, kategori/kegunaan produk, gambar upload, paste gambar, link gambar, nota produk, dan link affiliate.
 - Pilihan posting sehari termasuk `25 posting / hari`.
 - Auto cipta story dan terus masukkan ke jadual SMTA.
 - Kalendar jadual harian dengan semakan 25 slot sehari.
@@ -26,6 +26,19 @@ Nama rasmi sistem:
 - Auto promote `Blocked` kepada `Pending` bila slot schedule kosong.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
 - UI refresh gaya Kumo UI dan `gpt-taste`: semantic color token, surface hierarchy, sidebar premium, table compact, focus state jelas, dan motion GSAP yang ringan.
+
+## Workflow Produk Tepat
+
+Untuk elak story lari daripada produk sebenar, `Tajuk produk wajib` mesti diisi sebelum jana story. Link gambar Shopee sahaja tidak cukup kerana URL imej selalunya tidak membawa nama produk, dan kadang-kadang imej yang diberi ialah banner promosi, bukan gambar produk.
+
+Cadangan input minimum:
+
+- `Tajuk produk wajib`: nama produk sebenar di Shopee, contoh `Sambal Nyet Berapi by Khairulaming 180g`.
+- `Kategori / kegunaan produk`: fungsi ringkas produk, contoh `sambal ready-to-eat, lauk cepat, penambah selera`.
+- `Nota gambar / produk`: konteks emosi atau situasi, contoh `sesuai untuk nasi panas, telur, ayam goreng, hari malas masak`.
+- `Link affiliate produk`: link CTA wajib yang akan diletakkan di akhir Reply 2.
+
+SMTA akan tolak proses generate jika tajuk produk kosong. Prompt DeepSeek juga dikunci supaya AI tidak tukar kategori produk atau reka manfaat yang tidak berkaitan.
 
 ## Cara Jalankan
 
@@ -178,6 +191,12 @@ SMTA kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas SMTA berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.8.0
+
+- Tambah field wajib `Tajuk produk` dan `Kategori / kegunaan produk` di Jana Story supaya AI tidak meneka produk daripada URL gambar.
+- Prompt DeepSeek kini mengunci storytelling kepada produk sebenar dan melarang tukar kategori produk.
+- Story run kini simpan `productTitle` dan `productCategory` untuk audit semula.
 
 ### v0.7.9
 

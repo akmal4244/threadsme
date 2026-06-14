@@ -1,8 +1,7 @@
 {
   "systemStatus": "Automasi aktif - menunggu slot",
-  "systemNote": "63 siri masih Blocked. SMTA akan auto jadikan Pending bila slot jadual kosong.",
+  "systemNote": "87 siri masih Blocked. SMTA akan auto jadikan Pending bila slot jadual kosong.",
   "scheduled": [
-    9,
     10,
     11,
     12,
@@ -26,7 +25,8 @@
     30,
     31,
     32,
-    33
+    33,
+    34
   ],
   "posted": [
     1,
@@ -36,12 +36,12 @@
     5,
     6,
     7,
-    8
+    8,
+    9
   ],
   "failed": [],
   "prepared": [],
   "remaining": [
-    34,
     35,
     36,
     37,
@@ -103,11 +103,36 @@
     93,
     94,
     95,
-    96
+    96,
+    97,
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121
   ],
   "automationMode": true,
   "automationLimit": 25,
-  "lastAutomationAt": "2026-06-14 08:46 GMT+8",
+  "lastAutomationAt": "2026-06-14 09:10 GMT+8",
   "publisher": {
     "enabled": false,
     "dryRun": true,
@@ -118,6 +143,6 @@
     "maxDuePerSync": 1,
     "liveReady": false
   },
-  "lastGeneratedScheduleAt": "2026-06-14 00:41 GMT+8",
+  "lastGeneratedScheduleAt": "2026-06-14 08:49 GMT+8",
   "lastRescheduledAt": "2026-06-14 08:02 GMT+8"
 }

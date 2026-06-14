@@ -161,7 +161,7 @@
             <div>
               <p class="eyebrow">AI Story</p>
               <h1>Jana Story Produk</h1>
-              <p class="subtitle">Brief boleh kosong. SMTA akan cipta angle, story, dan CTA sendiri ikut gaya netizen Malaysia di Threads.</p>
+              <p class="subtitle">Tajuk produk wajib. Brief boleh ringkas; SMTA akan bina angle, story, dan CTA ikut produk sebenar.</p>
             </div>
             <span id="aiStatus">Semak server AI</span>
           </header>
@@ -169,11 +169,31 @@
           <section class="story-lab reveal" aria-label="Penjana story DeepSeek">
             <div class="story-grid">
               <div class="story-inputs">
+                <div class="story-two-col">
+                  <label class="field-stack">
+                    <span>Tajuk produk wajib</span>
+                    <input
+                      id="productTitle"
+                      type="text"
+                      placeholder="Contoh: Sambal Nyet Berapi by Khairulaming 180g"
+                      autocomplete="off"
+                    />
+                  </label>
+                  <label class="field-stack">
+                    <span>Kategori / kegunaan produk</span>
+                    <input
+                      id="productCategory"
+                      type="text"
+                      placeholder="Contoh: sambal ready-to-eat, lauk cepat, penambah selera"
+                      autocomplete="off"
+                    />
+                  </label>
+                </div>
                 <label class="field-stack">
                   <span>Brief optional / output asal</span>
                   <textarea
                     id="storyInput"
-                    placeholder="Kosongkan pun boleh. Jika ada idea, paste teks produk, cerita, angle, manfaat, atau contoh output lama di sini."
+                    placeholder="Paste tajuk Shopee, manfaat, target pembaca, masalah harian, atau contoh output lama. Tajuk produk tetap wajib supaya story tak lari."
                   ></textarea>
                 </label>
                 <div class="story-two-col">
@@ -474,6 +494,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-    <script src="./app.js?v=14"></script>
+    <script src="./app.js?v=15"></script>
   </body>
 </html>

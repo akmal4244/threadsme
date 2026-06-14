@@ -65,6 +65,8 @@ const els = {
   copyThreadButton: document.querySelector("#copyThreadButton"),
   copyReply2Button: document.querySelector("#copyReply2Button"),
   aiStatus: document.querySelector("#aiStatus"),
+  productTitle: document.querySelector("#productTitle"),
+  productCategory: document.querySelector("#productCategory"),
   storyInput: document.querySelector("#storyInput"),
   storyImage: document.querySelector("#storyImage"),
   storyFileName: document.querySelector("#storyFileName"),
@@ -1010,8 +1012,18 @@ function bindStoryGenerator() {
   });
 
   els.generateStoryButton.addEventListener("click", async () => {
+    const productTitle = els.productTitle.value.trim();
+    const productCategory = els.productCategory.value.trim();
     const sourceText = els.storyInput.value.trim();
     const imageNotes = els.imageNotes.value.trim();
+
+    if (!productTitle) {
+      els.storyOutput.value =
+        "Sila isi Tajuk produk wajib dahulu. Contoh: Sambal Nyet Berapi by Khairulaming 180g. Ini elak AI reka story yang tak kena dengan produk.";
+      setAiStatus("Tajuk produk wajib", "warn");
+      els.productTitle.focus();
+      return;
+    }
 
     els.generateStoryButton.disabled = true;
     els.generateStoryButton.setAttribute("aria-busy", "true");
@@ -1025,6 +1037,8 @@ function bindStoryGenerator() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           sourceText,
+          productTitle,
+          productCategory,
           imageNotes,
           imageName: state.storyImageName,
           imageSource: state.storyImageSource,
@@ -1080,6 +1094,8 @@ function bindStoryGenerator() {
 
   els.clearStoryButton.addEventListener("click", () => {
     els.storyInput.value = "";
+    els.productTitle.value = "";
+    els.productCategory.value = "";
     els.imageNotes.value = "";
     els.storyOutput.value = "";
     els.storyImage.value = "";

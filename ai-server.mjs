@@ -884,6 +884,8 @@ async function readBody(req) {
 function buildPrompt(input) {
   const versions = Math.max(1, Math.min(Number(input.versions || input.postsPerDay || 3), maxPostingPerDay));
   const theme = input.theme || "auto";
+  const productTitle = String(input.productTitle || "").trim();
+  const productCategory = String(input.productCategory || "").trim();
   const sourceText = String(input.sourceText || "").trim();
   const imageNotes = String(input.imageNotes || "").trim();
   const imageName = String(input.imageName || "").trim();
@@ -891,9 +893,9 @@ function buildPrompt(input) {
   const imageSource = String(input.imageSource || "").trim();
   const affiliateLink = String(input.affiliateLink || "https://s.shopee.com.my/7VDqSOoKf3").trim();
   const postsPerDay = Math.max(1, Math.min(Number(input.postsPerDay || 5), maxPostingPerDay));
-  const hasProductContext = Boolean(sourceText || imageNotes || imageName || imageUrl || imageSource);
+  const hasProductContext = Boolean(productTitle || productCategory || sourceText || imageNotes || imageName || imageUrl || imageSource);
   const autoContext = hasProductContext
-    ? "Ada sedikit konteks produk daripada gambar/link/nota. Tafsir secara berhati-hati dan jangan reka spesifikasi teknikal yang tidak diberi."
+    ? "Ada konteks produk. Ikat semua storytelling kepada produk tepat yang diberi dan jangan reka spesifikasi teknikal yang tidak diberi."
     : "Tiada brief atau nota produk diberi. Cipta sendiri angle affiliate yang selamat, general, dan relatable untuk netizen Malaysia di Threads tanpa claim spesifik tentang produk.";
 
   return {
@@ -906,6 +908,7 @@ function buildPrompt(input) {
           "Tulis dalam Bahasa Melayu Malaysia yang santai, personal, matang, dan terasa seperti luahan rakan yang pernah melalui masalah itu sendiri.",
           "Setiap siri mesti ada arc emosi yang jelas: POST UTAMA = hook kuat + rasa yang familiar, REPLY 1 = cerita kecil harian yang buat pembaca rasa difahami, REPLY 2 = resolusi lembut yang menghubungkan produk secara natural.",
           "Jangan kedengaran seperti iklan keras, katalog produk, atau ayat template. Utamakan human truth dahulu, produk datang sebagai penyelesaian kecil yang masuk akal.",
+          "Jika tajuk produk diberi, produk itu wajib jadi anchor cerita. Jangan ubah kategori produk, jangan tukar kepada produk lain, dan jangan tulis manfaat yang tidak berkaitan.",
           "Jika user tidak beri brief, jangan minta maklumat tambahan. Terus cipta angle sendiri yang sesuai untuk Threads Malaysia.",
           "Jika produk tidak jelas, gunakan bahasa neutral seperti 'produk ni', 'barang ni', atau 'benda kecil ni' dan fokus pada emosi/situasi harian, bukan spesifikasi.",
           "Guna angle berbeza untuk setiap versi: jangan ulang struktur hook, konflik, atau CTA yang sama.",
@@ -924,6 +927,8 @@ function buildPrompt(input) {
           `Tugasan: hasilkan ${versions} versi siri Threads.`,
           `Cadangan posting sehari: ${postsPerDay}. Variasi mesti cukup berbeza untuk dijadualkan sepanjang hari tanpa rasa berulang.`,
           `Tema emosi: ${theme}. Jika auto, pilih pain atau hope yang paling kuat.`,
+          `Tajuk produk wajib: ${productTitle || "tidak diberi"}`,
+          `Kategori / kegunaan produk: ${productCategory || "tidak diberi"}`,
           `Affiliate link wajib di akhir Reply 2: ${affiliateLink}`,
           `Mod auto konteks: ${autoContext}`,
           "Format setiap versi: POST UTAMA, REPLY 1, REPLY 2.",
@@ -1000,6 +1005,8 @@ function limitPostText(text, maxLength = 300) {
 
 function inferFallbackProduct(input) {
   const context = [
+    input.productTitle,
+    input.productCategory,
     input.sourceText,
     input.imageNotes,
     input.imageName,
@@ -1097,6 +1104,10 @@ function buildFallbackStories(input, affiliateLink) {
 }
 
 async function generateStory(input) {
+  const productTitle = String(input.productTitle || "").trim();
+  if (!productTitle) {
+    throw new Error("Tajuk produk wajib. Masukkan nama produk Shopee supaya story tidak lari daripada produk sebenar.");
+  }
   const prompt = buildPrompt(input);
   const affiliateLink = String(input.affiliateLink || "https://s.shopee.com.my/7VDqSOoKf3").trim();
   let apiKey = "";
@@ -1163,12 +1174,16 @@ async function saveStoryRun(input, result) {
   const createdAt = `${malaysiaNow()} GMT+8`;
   const affiliateLink = String(input.affiliateLink || "").trim();
   const imageUrl = String(input.imageUrl || "").trim();
+  const productTitle = String(input.productTitle || "").trim();
+  const productCategory = String(input.productCategory || "").trim();
   const runId = `run-${Date.now()}`;
   const schedule = await scheduleGeneratedVersions(input, result, runId);
   const run = {
     id: runId,
     createdAt,
-    productName: String(input.imageNotes || input.sourceText || input.imageName || input.imageUrl || "Auto story Threads Malaysia").slice(0, 80),
+    productName: String(productTitle || input.imageNotes || input.sourceText || input.imageName || input.imageUrl || "Auto story Threads Malaysia").slice(0, 80),
+    productTitle,
+    productCategory,
     imageName: String(input.imageName || "").trim(),
     imageSource: String(input.imageSource || "").trim(),
     imageUrl,

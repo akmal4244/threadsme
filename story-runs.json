@@ -1211,6 +1211,469 @@
           "activeScheduledLimit": 25
         }
       }
+    },
+    {
+      "id": "run-1781398181775",
+      "createdAt": "2026-06-14 08:49 GMT+8",
+      "productName": "Sambal Nyet Berapi by Khairulaming 180g",
+      "imageName": "my-11134207-7rasm-m5x46cbh71t404.webp",
+      "imageSource": "url",
+      "imageUrl": "https://down-aka-my.img.susercontent.com/my-11134207-7rasm-m5x46cbh71t404.webp",
+      "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+      "postsPerDay": 25,
+      "versions": [
+        {
+          "id": "run-1781398181775-v1",
+          "label": "Versi 1",
+          "status": "blocked",
+          "scheduleNumber": 97,
+          "slot": "2026-06-17 17:40",
+          "mainLength": 108,
+          "reply1Length": 124,
+          "reply2Length": 210,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v2",
+          "label": "Versi 2",
+          "status": "blocked",
+          "scheduleNumber": 98,
+          "slot": "2026-06-17 18:20",
+          "mainLength": 107,
+          "reply1Length": 97,
+          "reply2Length": 185,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v3",
+          "label": "Versi 3",
+          "status": "blocked",
+          "scheduleNumber": 99,
+          "slot": "2026-06-17 19:00",
+          "mainLength": 101,
+          "reply1Length": 95,
+          "reply2Length": 189,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v4",
+          "label": "Versi 4",
+          "status": "blocked",
+          "scheduleNumber": 100,
+          "slot": "2026-06-17 19:40",
+          "mainLength": 92,
+          "reply1Length": 111,
+          "reply2Length": 188,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v5",
+          "label": "Versi 5",
+          "status": "blocked",
+          "scheduleNumber": 101,
+          "slot": "2026-06-17 20:20",
+          "mainLength": 108,
+          "reply1Length": 110,
+          "reply2Length": 173,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v6",
+          "label": "Versi 6",
+          "status": "blocked",
+          "scheduleNumber": 102,
+          "slot": "2026-06-17 21:00",
+          "mainLength": 91,
+          "reply1Length": 103,
+          "reply2Length": 183,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v7",
+          "label": "Versi 7",
+          "status": "blocked",
+          "scheduleNumber": 103,
+          "slot": "2026-06-17 21:40",
+          "mainLength": 94,
+          "reply1Length": 108,
+          "reply2Length": 173,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v8",
+          "label": "Versi 8",
+          "status": "blocked",
+          "scheduleNumber": 104,
+          "slot": "2026-06-17 22:20",
+          "mainLength": 112,
+          "reply1Length": 100,
+          "reply2Length": 179,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v9",
+          "label": "Versi 9",
+          "status": "blocked",
+          "scheduleNumber": 105,
+          "slot": "2026-06-17 23:00",
+          "mainLength": 112,
+          "reply1Length": 103,
+          "reply2Length": 170,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v10",
+          "label": "Versi 10",
+          "status": "blocked",
+          "scheduleNumber": 106,
+          "slot": "2026-06-18 07:00",
+          "mainLength": 76,
+          "reply1Length": 109,
+          "reply2Length": 172,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v11",
+          "label": "Versi 11",
+          "status": "blocked",
+          "scheduleNumber": 107,
+          "slot": "2026-06-18 07:40",
+          "mainLength": 78,
+          "reply1Length": 100,
+          "reply2Length": 160,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v12",
+          "label": "Versi 12",
+          "status": "blocked",
+          "scheduleNumber": 108,
+          "slot": "2026-06-18 08:20",
+          "mainLength": 96,
+          "reply1Length": 96,
+          "reply2Length": 166,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v13",
+          "label": "Versi 13",
+          "status": "blocked",
+          "scheduleNumber": 109,
+          "slot": "2026-06-18 09:00",
+          "mainLength": 73,
+          "reply1Length": 103,
+          "reply2Length": 168,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v14",
+          "label": "Versi 14",
+          "status": "blocked",
+          "scheduleNumber": 110,
+          "slot": "2026-06-18 09:40",
+          "mainLength": 93,
+          "reply1Length": 116,
+          "reply2Length": 165,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v15",
+          "label": "Versi 15",
+          "status": "blocked",
+          "scheduleNumber": 111,
+          "slot": "2026-06-18 10:20",
+          "mainLength": 111,
+          "reply1Length": 93,
+          "reply2Length": 153,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v16",
+          "label": "Versi 16",
+          "status": "blocked",
+          "scheduleNumber": 112,
+          "slot": "2026-06-18 11:00",
+          "mainLength": 100,
+          "reply1Length": 105,
+          "reply2Length": 161,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v17",
+          "label": "Versi 17",
+          "status": "blocked",
+          "scheduleNumber": 113,
+          "slot": "2026-06-18 11:40",
+          "mainLength": 100,
+          "reply1Length": 101,
+          "reply2Length": 152,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v18",
+          "label": "Versi 18",
+          "status": "blocked",
+          "scheduleNumber": 114,
+          "slot": "2026-06-18 12:20",
+          "mainLength": 97,
+          "reply1Length": 109,
+          "reply2Length": 172,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v19",
+          "label": "Versi 19",
+          "status": "blocked",
+          "scheduleNumber": 115,
+          "slot": "2026-06-18 13:00",
+          "mainLength": 103,
+          "reply1Length": 90,
+          "reply2Length": 161,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v20",
+          "label": "Versi 20",
+          "status": "blocked",
+          "scheduleNumber": 116,
+          "slot": "2026-06-18 13:40",
+          "mainLength": 102,
+          "reply1Length": 92,
+          "reply2Length": 163,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v21",
+          "label": "Versi 21",
+          "status": "blocked",
+          "scheduleNumber": 117,
+          "slot": "2026-06-18 14:20",
+          "mainLength": 106,
+          "reply1Length": 102,
+          "reply2Length": 154,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v22",
+          "label": "Versi 22",
+          "status": "blocked",
+          "scheduleNumber": 118,
+          "slot": "2026-06-18 15:00",
+          "mainLength": 107,
+          "reply1Length": 106,
+          "reply2Length": 159,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v23",
+          "label": "Versi 23",
+          "status": "blocked",
+          "scheduleNumber": 119,
+          "slot": "2026-06-18 15:40",
+          "mainLength": 90,
+          "reply1Length": 114,
+          "reply2Length": 157,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v24",
+          "label": "Versi 24",
+          "status": "blocked",
+          "scheduleNumber": 120,
+          "slot": "2026-06-18 16:20",
+          "mainLength": 70,
+          "reply1Length": 102,
+          "reply2Length": 157,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        },
+        {
+          "id": "run-1781398181775-v25",
+          "label": "Versi 25",
+          "status": "blocked",
+          "scheduleNumber": 121,
+          "slot": "2026-06-18 17:00",
+          "mainLength": 103,
+          "reply1Length": 112,
+          "reply2Length": 144,
+          "correctedAt": "2026-06-14 09:00:05 GMT+8"
+        }
+      ],
+      "schedule": {
+        "items": [
+          {
+            "number": 97,
+            "slot": "2026-06-17 17:40",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 98,
+            "slot": "2026-06-17 18:20",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 99,
+            "slot": "2026-06-17 19:00",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 100,
+            "slot": "2026-06-17 19:40",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 101,
+            "slot": "2026-06-17 20:20",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 102,
+            "slot": "2026-06-17 21:00",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 103,
+            "slot": "2026-06-17 21:40",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 104,
+            "slot": "2026-06-17 22:20",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 105,
+            "slot": "2026-06-17 23:00",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 106,
+            "slot": "2026-06-18 07:00",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 107,
+            "slot": "2026-06-18 07:40",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 108,
+            "slot": "2026-06-18 08:20",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 109,
+            "slot": "2026-06-18 09:00",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 110,
+            "slot": "2026-06-18 09:40",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 111,
+            "slot": "2026-06-18 10:20",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 112,
+            "slot": "2026-06-18 11:00",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 113,
+            "slot": "2026-06-18 11:40",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 114,
+            "slot": "2026-06-18 12:20",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 115,
+            "slot": "2026-06-18 13:00",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 116,
+            "slot": "2026-06-18 13:40",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 117,
+            "slot": "2026-06-18 14:20",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 118,
+            "slot": "2026-06-18 15:00",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 119,
+            "slot": "2026-06-18 15:40",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 120,
+            "slot": "2026-06-18 16:20",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          },
+          {
+            "number": 121,
+            "slot": "2026-06-18 17:00",
+            "affiliateLink": "https://s.shopee.com.my/2g8lFhByWQ",
+            "queueStatus": "blocked"
+          }
+        ],
+        "postsPerDay": 25,
+        "activeScheduledLimit": 25,
+        "apiDailyPublishLimit": 250,
+        "automation": {
+          "changed": true,
+          "promoted": [],
+          "postedNow": [],
+          "openSlots": 0,
+          "activeScheduled": 25,
+          "blockedCount": 88,
+          "nextBlocked": 34,
+          "nextPending": null,
+          "nextRelease": {
+            "number": 9,
+            "slot": "2026-06-14 09:00",
+            "time": 1781398800000
+          }
+        }
+      },
+      "productTitle": "Sambal Nyet Berapi by Khairulaming 180g",
+      "productCategory": "sambal ready-to-eat, lauk cepat, penambah selera untuk nasi, telur, ayam atau ikan goreng",
+      "correctedAt": "2026-06-14 09:00:05 GMT+8",
+      "correctionReason": "Corrected from image filename-only context to exact Sambal Nyet product context."
     }
   ]
 }
