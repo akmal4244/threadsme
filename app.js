@@ -384,7 +384,7 @@ async function submitAuth() {
     return;
   }
   els.authSubmitButton.disabled = true;
-  if (els.authStatus) els.authStatus.textContent = state.auth.setupRequired ? "Menyimpan setup admin..." : "Login...";
+  if (els.authStatus) els.authStatus.textContent = state.auth.setupRequired ? "Menyimpan setup admin..." : "Membuka sesi...";
   try {
     const endpoint = state.auth.setupRequired ? "/api/auth/setup" : "/api/auth/login";
     const response = await apiFetch(endpoint, {
@@ -785,7 +785,7 @@ function renderMetrics() {
 function makeTextElement(tag, className, text) {
   const element = document.createElement(tag);
   if (className) element.className = className;
-  element.textContent = text;
+  element.textContent = String(text ?? "").replace(/\u2014/g, " - ");
   return element;
 }
 
@@ -817,9 +817,10 @@ function renderQueue() {
       button.className = `queue-item${index === state.selectedIndex ? " active" : ""}`;
       const title = makeTextElement("strong", "", `Siri ${index + 1} - ${formatSlot(post.slot)}`);
       const snippet = document.createElement("span");
+      const previewText = String(post.main || "").replace(/\u2014/g, " - ");
       snippet.append(
         makeStatusBadge(status),
-        document.createTextNode(` ${post.main.slice(0, 92)}${post.main.length > 92 ? "..." : ""}`),
+        document.createTextNode(` ${previewText.slice(0, 92)}${previewText.length > 92 ? "..." : ""}`),
       );
       button.append(title, snippet);
       button.addEventListener("click", () => {
@@ -1163,7 +1164,7 @@ function renderAutomationHealth() {
     },
     {
       label: "Publisher",
-      value: publisher.liveReady ? "Live ready" : publisher.dryRun === false ? "Belum lengkap" : "Dry-run",
+      value: publisher.liveReady ? "Live sedia" : publisher.dryRun === false ? "Belum lengkap" : "Mod selamat",
       detail: publisher.hasToken ? "Token disimpan" : "Token belum ada",
       tone: publisher.liveReady ? "good" : "warn",
     },
@@ -1607,14 +1608,14 @@ function renderPublisher() {
   const selectedNumber = state.selectedIndex + 1;
   const selectedPost = state.posts[state.selectedIndex];
   const selectedStatus = selectedPost ? getStatus(selectedPost, state.selectedIndex) : "-";
-  const mode = config.liveReady ? "Live ready" : config.dryRun ? "Dry-run" : "Belum lengkap";
+  const mode = config.liveReady ? "Live sedia" : config.dryRun ? "Mod selamat" : "Belum lengkap";
 
   els.publisherModeBadge.textContent = mode;
   els.publisherModeBadge.className = config.liveReady ? "live" : config.dryRun ? "dry" : "warn";
   els.publisherReadyText.textContent = config.liveReady
     ? "Sedia publish live"
     : config.dryRun
-      ? "Dry-run aktif"
+      ? "Mod selamat aktif"
       : "Token/User ID belum lengkap";
   els.publisherDueText.textContent = state.publisher.dueNumbers.length
     ? `${state.publisher.dueNumbers.length} due: ${state.publisher.dueNumbers.join(", ")}`
@@ -1624,7 +1625,7 @@ function renderPublisher() {
   els.publisherSelectedText.textContent = selectedPost ? `Siri ${selectedNumber} (${statusLabel(selectedStatus)})` : "-";
   els.publisherHelpText.textContent = config.liveReady
     ? "Live aktif. Siri due akan dihantar melalui Threads API dan ditanda Lulus selepas berjaya."
-    : "Dry-run aktif. Tiada post public dihantar sehingga User ID dan token Threads lengkap.";
+    : "Mod selamat aktif. Tiada post public dihantar sehingga User ID dan token Threads lengkap.";
 
   if (els.dashboardPublisherMode && els.dashboardPublisherNote) {
     els.dashboardPublisherMode.textContent = mode;
@@ -1660,7 +1661,7 @@ function renderPublisher() {
   els.publisherLogNote.textContent = entries.length ? `${entries.length} log terakhir` : "Tiada log";
   if (!entries.length) {
     els.publisherLogList.replaceChildren(
-      makeEmptyState("Log publisher kosong", "Dry-run atau publish live akan direkodkan di sini selepas dijalankan."),
+      makeEmptyState("Log publisher kosong", "Mod selamat atau publish live akan direkodkan di sini selepas dijalankan."),
     );
     return;
   }
@@ -1668,8 +1669,9 @@ function renderPublisher() {
   const rows = entries.map((entry) => {
     const row = document.createElement("div");
     row.className = `publisher-log-row ${entry.status || "dry_run"}`;
-    const label = entry.status === "published" ? "Lulus" : entry.status === "failed" ? "Gagal" : "Dry-run";
-    const details = makeTextElement("span", "", `${label} - ${entry.mode || "dry-run"}`);
+    const label = entry.status === "published" ? "Lulus" : entry.status === "failed" ? "Gagal" : "Mod selamat";
+    const modeText = entry.mode === "dry-run" ? "mod selamat" : entry.mode || "mod selamat";
+    const details = makeTextElement("span", "", `${label} - ${modeText}`);
     details.append(makeTextElement("small", "", entry.finishedAt || entry.createdAt || ""));
     row.append(
       makeTextElement("strong", "", `Siri ${entry.number || "-"}`),
@@ -2118,7 +2120,7 @@ async function savePublisherConfig() {
 async function runPublisherDue() {
   if (!els.runPublisherButton) return;
   els.runPublisherButton.disabled = true;
-  els.runPublisherButton.textContent = "Running...";
+  els.runPublisherButton.textContent = "Menjalankan...";
   try {
     const response = await apiFetch("/api/threads-publisher/run-due", {
       method: "POST",
@@ -2144,7 +2146,7 @@ async function publishSelectedSeries() {
   }
 
   els.publishSelectedButton.disabled = true;
-  els.publishSelectedButton.textContent = config.dryRun ? "Dry-run..." : "Publishing...";
+  els.publishSelectedButton.textContent = config.dryRun ? "Semak selamat..." : "Menerbitkan...";
   try {
     const response = await apiFetch("/api/threads-publisher/publish-one", {
       method: "POST",
@@ -2195,7 +2197,7 @@ function bindPublisherControls() {
   });
   els.clearShopeeCookieButton?.addEventListener("click", async () => {
     els.clearShopeeCookieButton.disabled = true;
-    els.clearShopeeCookieButton.textContent = "Clearing...";
+    els.clearShopeeCookieButton.textContent = "Mengosongkan...";
     try {
       await saveShopeeCookie("");
       els.shopeeCookieInput.value = "";
@@ -2238,7 +2240,7 @@ async function saveProductAuditMetadata() {
 async function regenerateProductAuditStories() {
   if (!els.auditRegenerateButton) return;
   els.auditRegenerateButton.disabled = true;
-  els.auditActionStatus.textContent = "Regenerate story...";
+  els.auditActionStatus.textContent = "Menjana semula story...";
   try {
     const response = await apiFetch("/api/product-audit/regenerate", {
       method: "POST",

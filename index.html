@@ -16,7 +16,7 @@
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="./assets/threadsme-favicon.svg?v=4" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=21" />
+    <link rel="stylesheet" href="./styles.css?v=22" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">Langkau ke kandungan utama</a>
@@ -43,7 +43,7 @@
           <span>Ingat saya</span>
         </label>
         <button id="authSubmitButton" type="button">Masuk</button>
-        <p id="authStatus" class="auth-status">Menyemak status keselamatan...</p>
+        <p id="authStatus" class="auth-status">Menyemak status keselamatan</p>
       </article>
     </section>
     <section id="logoutConfirmModal" class="confirm-modal" aria-labelledby="logoutConfirmTitle" aria-modal="true" role="dialog" hidden>
@@ -173,7 +173,7 @@
             </article>
             <article>
               <span>Publisher</span>
-              <strong id="dashboardPublisherMode">Dry-run</strong>
+              <strong id="dashboardPublisherMode">Mod selamat</strong>
               <p id="dashboardPublisherNote">Live Threads API dikunci sehingga User ID dan token disahkan.</p>
             </article>
           </section>
@@ -378,7 +378,7 @@
                 <p class="helper-text">Klik kotak gambar untuk paste imej dari clipboard, atau guna upload/link gambar.</p>
                 <label class="field-stack">
                   <span>Output Threads standard</span>
-                  <textarea id="storyOutput" readonly placeholder="[POST UTAMA]&#10;...&#10;&#10;[REPLY 1]&#10;...&#10;&#10;[REPLY 2]&#10;..."></textarea>
+                  <textarea id="storyOutput" readonly placeholder="[POST UTAMA]&#10;Ayat hook utama akan dipaparkan di sini.&#10;&#10;[REPLY 1]&#10;Sambungan emosi cerita akan dipaparkan di sini.&#10;&#10;[REPLY 2]&#10;Resolusi, produk dan pautan affiliate akan dipaparkan di sini."></textarea>
                 </label>
                 <div class="action-strip story-actions">
                   <button id="copyStoryButton" type="button">Salin output</button>
@@ -561,7 +561,7 @@
                 </label>
                 <label class="field-stack">
                   <span>Link affiliate</span>
-                  <input id="auditAffiliateLink" type="url" placeholder="https://s.shopee.com.my/..." autocomplete="off" />
+                  <input id="auditAffiliateLink" type="url" placeholder="https://s.shopee.com.my/kod-produk" autocomplete="off" />
                 </label>
                 <label class="field-stack">
                   <span>Nota audit</span>
@@ -595,7 +595,7 @@
               <h1>Automasi Live</h1>
               <p class="subtitle">Sambungkan Threads API apabila mahu ThreadsMe publish siri Pending yang sudah sampai masa.</p>
             </div>
-            <span id="publisherModeBadge">Dry-run</span>
+            <span id="publisherModeBadge">Mod selamat</span>
           </header>
 
           <section class="publisher-layout reveal" aria-label="Tetapan publisher Threads">
@@ -608,7 +608,7 @@
                 <dl>
                   <div>
                     <dt>Mode</dt>
-                    <dd id="publisherModeText">Dry-run</dd>
+                    <dd id="publisherModeText">Mod selamat</dd>
                   </div>
                   <div>
                     <dt>Token</dt>
@@ -619,7 +619,7 @@
                     <dd id="publisherSelectedText">-</dd>
                   </div>
                 </dl>
-                <p id="publisherHelpText">Dry-run tidak menghantar post public. Aktifkan live hanya selepas User ID dan token Threads disahkan.</p>
+                <p id="publisherHelpText">Mod selamat tidak menghantar post public. Aktifkan live hanya selepas User ID dan token Threads disahkan.</p>
               </div>
               <div class="publisher-actions primary-actions">
                 <button id="runPublisherButton" type="button">Run due sekarang</button>
@@ -648,7 +648,7 @@
                   </label>
                   <label class="check-row">
                     <input id="threadsDryRun" type="checkbox" checked />
-                    <span>Dry-run sahaja</span>
+                    <span>Mod selamat sahaja</span>
                   </label>
                 </div>
                 <div class="story-two-col">
@@ -721,6 +721,6 @@
 
     <script src="./assets/vendor/gsap.min.js?v=1"></script>
     <script src="./assets/vendor/ScrollTrigger.min.js?v=1"></script>
-    <script src="./app.js?v=23"></script>
+    <script src="./app.js?v=24"></script>
   </body>
 </html>
