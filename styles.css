@@ -1,36 +1,37 @@
 :root {
   color-scheme: light;
-  --kumo-base: #f7f8fb;
-  --kumo-base-strong: #eef2f7;
+  --kumo-base: #f7f6f3;
+  --kumo-base-strong: #ece9e3;
   --kumo-surface: #ffffff;
-  --kumo-surface-soft: #fbfcfe;
-  --kumo-surface-muted: #f4f6fa;
-  --kumo-ink: #111827;
-  --kumo-ink-soft: #334155;
-  --kumo-subtle: #64748b;
-  --kumo-faint: #94a3b8;
-  --kumo-hairline: #dbe3ee;
-  --kumo-hairline-strong: #c7d2df;
-  --kumo-brand: #2463eb;
-  --kumo-brand-strong: #174ac9;
-  --kumo-brand-soft: #eef4ff;
-  --kumo-success: #12805c;
-  --kumo-success-soft: #e8f7f0;
-  --kumo-warning: #b65f00;
-  --kumo-warning-soft: #fff3df;
-  --kumo-danger: #c53030;
-  --kumo-danger-soft: #fff0f0;
-  --kumo-neutral: #475569;
-  --kumo-neutral-soft: #f1f5f9;
-  --shadow-surface: 0 1px 1px rgba(15, 23, 42, 0.04), 0 12px 28px rgba(15, 23, 42, 0.07);
-  --shadow-hover: 0 1px 2px rgba(15, 23, 42, 0.05), 0 18px 36px rgba(15, 23, 42, 0.1);
+  --kumo-surface-soft: #fbfaf8;
+  --kumo-surface-muted: #f1efea;
+  --kumo-ink: #202124;
+  --kumo-ink-soft: #3f3f3a;
+  --kumo-subtle: #6f6a62;
+  --kumo-faint: #9a948b;
+  --kumo-hairline: #e5e0d8;
+  --kumo-hairline-strong: #d6d0c7;
+  --kumo-brand: #1f6c9f;
+  --kumo-brand-strong: #174e73;
+  --kumo-brand-soft: #e1f3fe;
+  --kumo-success: #346538;
+  --kumo-success-soft: #edf3ec;
+  --kumo-warning: #956400;
+  --kumo-warning-soft: #fbf3db;
+  --kumo-danger: #9f2f2d;
+  --kumo-danger-soft: #fdebec;
+  --kumo-neutral: #5f5b54;
+  --kumo-neutral-soft: #f4f1ec;
+  --shadow-surface: 0 1px 1px rgba(32, 33, 36, 0.03), 0 10px 24px rgba(32, 33, 36, 0.045);
+  --shadow-hover: 0 1px 2px rgba(32, 33, 36, 0.04), 0 16px 30px rgba(32, 33, 36, 0.06);
   --radius: 8px;
   --radius-sm: 6px;
   --gap: 16px;
   --motion: cubic-bezier(0.2, 0.8, 0.2, 1);
   font-family:
     "Geist",
-    "Plus Jakarta Sans",
+    "SF Pro Display",
+    "Helvetica Neue",
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -70,14 +71,8 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(247, 248, 251, 0.94)),
-    repeating-linear-gradient(
-      90deg,
-      rgba(15, 23, 42, 0.022) 0,
-      rgba(15, 23, 42, 0.022) 1px,
-      transparent 1px,
-      transparent 72px
-    );
+    repeating-linear-gradient(90deg, rgba(32, 33, 36, 0.018) 0, rgba(32, 33, 36, 0.018) 1px, transparent 1px, transparent 74px),
+    repeating-linear-gradient(0deg, rgba(32, 33, 36, 0.014) 0, rgba(32, 33, 36, 0.014) 1px, transparent 1px, transparent 74px);
 }
 
 button,
@@ -103,7 +98,7 @@ button {
   min-height: 40px;
   border: 1px solid transparent;
   border-radius: var(--radius);
-  background: var(--kumo-brand);
+  background: var(--kumo-ink);
   color: #fff;
   padding: 0 14px;
   font-weight: 800;
@@ -118,8 +113,8 @@ button {
 
 button:hover {
   transform: translateY(-1px);
-  background: var(--kumo-brand-strong);
-  box-shadow: 0 8px 18px rgba(36, 99, 235, 0.18);
+  background: #333333;
+  box-shadow: 0 8px 18px rgba(32, 33, 36, 0.08);
 }
 
 button:active {
@@ -224,6 +219,7 @@ textarea {
 .calendar-panel,
 .automation-focus,
 .automation-rail article,
+.action-center-panel,
 .health-panel,
 .audit-panel,
 .netizen-preview,
@@ -564,6 +560,7 @@ h2 {
 
 .note-panel,
 .automation-board,
+.action-layout,
 .publisher-layout,
 .workbench,
 .story-grid {
@@ -651,6 +648,165 @@ h2 {
   font-size: 0.74rem;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.action-center-panel {
+  padding: 16px;
+}
+
+.action-layout {
+  grid-template-columns: minmax(420px, 1.4fr) minmax(280px, 0.75fr);
+  align-items: start;
+}
+
+.action-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.action-summary-card {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid var(--kumo-hairline);
+  border-radius: var(--radius);
+  background: var(--kumo-surface-soft);
+  padding: 12px;
+}
+
+.action-summary-card span {
+  color: var(--kumo-subtle);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.action-summary-card strong {
+  color: var(--kumo-ink);
+  font-size: 1.55rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.action-summary-card small {
+  color: var(--kumo-faint);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.action-list {
+  display: grid;
+  gap: 10px;
+}
+
+.action-list.compact {
+  margin-top: 2px;
+}
+
+.action-card {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 74px;
+  border: 1px solid var(--kumo-hairline);
+  border-left-width: 3px;
+  background: var(--kumo-surface);
+  color: var(--kumo-ink);
+  padding: 12px;
+  text-align: left;
+  box-shadow: none;
+}
+
+.action-card.high {
+  border-left-color: var(--kumo-danger);
+}
+
+.action-card.medium {
+  border-left-color: var(--kumo-warning);
+}
+
+.action-card:hover {
+  background: var(--kumo-surface-soft);
+  box-shadow: var(--shadow-hover);
+}
+
+.action-number {
+  color: var(--kumo-subtle);
+  font-size: 0.78rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.action-card-body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.action-card-body strong,
+.action-card-body small,
+.action-card-body em {
+  min-width: 0;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.action-card-body small {
+  color: var(--kumo-subtle);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.action-card-body em {
+  color: var(--kumo-faint);
+  font-size: 0.76rem;
+  font-style: normal;
+}
+
+.action-center-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.action-center-actions.stacked {
+  grid-template-columns: 1fr;
+}
+
+.action-center-actions button:nth-child(2) {
+  border-color: var(--kumo-hairline);
+  background: var(--kumo-surface);
+  color: var(--kumo-ink);
+  box-shadow: none;
+}
+
+.auto-audit-guide {
+  display: grid;
+  gap: 8px;
+}
+
+.auto-audit-guide div {
+  display: grid;
+  gap: 4px;
+  border-bottom: 1px solid var(--kumo-hairline);
+  padding: 0 0 10px;
+}
+
+.auto-audit-guide span {
+  color: var(--kumo-subtle);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.auto-audit-guide strong {
+  color: var(--kumo-ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .field-stack {
@@ -1778,6 +1934,7 @@ h2 {
 
   .story-grid,
   .audit-layout,
+  .action-layout,
   .calendar-layout,
   .workbench,
   .publisher-layout,
@@ -1822,6 +1979,7 @@ h2 {
   .metrics-grid,
   .health-grid,
   .audit-metrics,
+  .action-summary-grid,
   .note-panel,
   .automation-rail,
   .slot-meta,
@@ -1832,9 +1990,20 @@ h2 {
 
   .generated-row,
   .netizen-card,
-  .audit-issue-row {
+  .audit-issue-row,
+  .action-card {
     grid-template-columns: 1fr;
     align-items: start;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .action-card-body {
+    width: 100%;
+    max-width: 100%;
+    overflow: visible;
   }
 
   .audit-issue-row span,
@@ -1842,6 +2011,12 @@ h2 {
     overflow: visible;
     text-overflow: clip;
     white-space: normal;
+  }
+
+  .action-card-body small,
+  .action-card-body em {
+    font-size: 0.78rem;
+    line-height: 1.45;
   }
 
   .generated-actions {
@@ -1889,6 +2064,7 @@ h2 {
   .automation-focus,
   .automation-rail article,
   .health-panel,
+  .action-center-panel,
   .story-lab,
   .audit-panel,
   .netizen-preview,
@@ -1907,6 +2083,7 @@ h2 {
   .metrics-grid,
   .note-panel,
   .automation-board,
+  .action-layout,
   .story-lab,
   .generated-status-wrap,
   .health-panel,
@@ -1915,8 +2092,8 @@ h2 {
   .workbench,
   .publisher-layout,
   .control-band {
-    width: calc(100vw - 20px);
-    max-width: calc(100vw - 20px);
+    width: 100%;
+    max-width: 100%;
   }
 
   h1 {
@@ -1946,6 +2123,7 @@ h2 {
   .preview-panel,
   .publisher-panel,
   .audit-panel,
+  .action-center-panel,
   .netizen-preview,
   .control-band {
     padding: 14px;
@@ -1996,6 +2174,7 @@ h2 {
   .action-strip,
   .publisher-actions,
   .audit-actions,
+  .action-center-actions,
   .product-intel-strip {
     display: grid;
     grid-template-columns: 1fr;

@@ -16,7 +16,7 @@
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="./assets/threadsme-favicon.svg?v=4" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=12" />
+    <link rel="stylesheet" href="./styles.css?v=17" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">Langkau ke kandungan utama</a>
@@ -39,6 +39,11 @@
             <span aria-hidden="true">R</span>
             <strong>Ringkasan</strong>
             <small>Papan operasi</small>
+          </button>
+          <button class="nav-item" type="button" data-view-target="actions">
+            <span aria-hidden="true">T</span>
+            <strong>Tindakan Saya</strong>
+            <small>Auto audit</small>
           </button>
           <button class="nav-item" type="button" data-view-target="story">
             <span aria-hidden="true">S</span>
@@ -132,6 +137,22 @@
             </article>
           </section>
 
+          <section class="action-center-panel reveal" aria-label="Tindakan saya ringkas">
+            <div class="panel-heading compact-heading">
+              <div>
+                <h2>Tindakan Saya</h2>
+                <p>ThreadsMe urus semakan berulang. Akmal hanya nampak kerja yang benar-benar perlukan input manusia.</p>
+              </div>
+              <span id="actionCenterBadge">Auto audit</span>
+            </div>
+            <div id="dashboardActionSummary" class="action-summary-grid"></div>
+            <div id="dashboardActionsList" class="action-list compact"></div>
+            <div class="action-center-actions">
+              <button id="runAutoAuditDashboardButton" type="button">Jalankan auto audit</button>
+              <button id="openActionsButton" type="button">Buka pusat tindakan</button>
+            </div>
+          </section>
+
           <section class="automation-board reveal" aria-label="Status automasi queue">
             <article class="automation-focus">
               <div>
@@ -169,6 +190,45 @@
               <span id="healthLastSync">Menunggu sync</span>
             </div>
             <div class="health-grid" id="automationHealthGrid"></div>
+          </section>
+        </section>
+
+        <section class="page-panel" data-view="actions" aria-label="Tindakan Saya" hidden>
+          <header class="module-header reveal">
+            <div>
+              <p class="eyebrow">Auto Audit</p>
+              <h1>Tindakan Saya</h1>
+              <p class="subtitle">ThreadsMe tapis isu produk, tahan story yang belum selamat, dan cadangkan tindakan paling penting dahulu.</p>
+            </div>
+            <span id="actionPageBadge">Menunggu audit</span>
+          </header>
+
+          <section class="action-layout reveal" aria-label="Pusat tindakan auto audit">
+            <article class="action-center-panel action-wide">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <h2>Queue tindakan</h2>
+                  <p>Fokus pada tindakan yang menjaga kualiti copywriting untuk netizen Malaysia.</p>
+                </div>
+                <span id="actionPageNote">Auto semak setiap 60 saat</span>
+              </div>
+              <div id="actionPageSummary" class="action-summary-grid"></div>
+              <div id="actionPageList" class="action-list"></div>
+            </article>
+
+            <aside class="action-center-panel action-side">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <h2>Auto Audit Produk</h2>
+                  <p>Semakan ini berjalan dengan automation queue dan boleh dipaksa bila-bila masa.</p>
+                </div>
+              </div>
+              <div id="autoAuditGuide" class="auto-audit-guide"></div>
+              <div class="action-center-actions stacked">
+                <button id="runAutoAuditPageButton" type="button">Run auto audit sekarang</button>
+                <button id="openAuditFromActionsButton" type="button">Buka Audit Produk</button>
+              </div>
+            </aside>
           </section>
         </section>
 
@@ -599,6 +659,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-    <script src="./app.js?v=16"></script>
+    <script src="./app.js?v=17"></script>
   </body>
 </html>

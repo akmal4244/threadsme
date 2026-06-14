@@ -66,6 +66,8 @@ Jika tajuk produk kosong, sistem mesti menolak generate.
 
 ## Product Audit dan Quality Gate
 
+- `Auto Audit Produk` berjalan bersama sync automation 60 saat. Ia re-check metadata, Quality Gate, dan tahan siri yang belum sah produk.
+- Guna menu `Tindakan Saya` untuk lihat hanya tindakan yang memerlukan input manusia, bukan semua log automation.
 - Siri yang tidak cukup relevan akan ditahan sebagai `Perlu Semak`.
 - `Perlu Semak` tidak patut masuk Pending atau publisher live.
 - Guna menu `Audit Produk` untuk pilih batch seperti `26-35`, isi tajuk/kategori produk sebenar, kemudian klik `Simpan metadata` atau `Regenerate story`.

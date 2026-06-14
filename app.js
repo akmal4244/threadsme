@@ -18,6 +18,7 @@ const state = {
   automationSummary: null,
   automationOnline: false,
   automationHealth: null,
+  autoAudit: { summary: null, actions: [] },
   productAudit: { summary: null, items: [] },
   aiHealth: { ok: false, hasKey: false, model: "" },
   publisher: {
@@ -45,6 +46,18 @@ const els = {
   dashboardPublisherNote: document.querySelector("#dashboardPublisherNote"),
   automationHealthGrid: document.querySelector("#automationHealthGrid"),
   healthLastSync: document.querySelector("#healthLastSync"),
+  actionCenterBadge: document.querySelector("#actionCenterBadge"),
+  actionPageBadge: document.querySelector("#actionPageBadge"),
+  actionPageNote: document.querySelector("#actionPageNote"),
+  dashboardActionSummary: document.querySelector("#dashboardActionSummary"),
+  actionPageSummary: document.querySelector("#actionPageSummary"),
+  dashboardActionsList: document.querySelector("#dashboardActionsList"),
+  actionPageList: document.querySelector("#actionPageList"),
+  autoAuditGuide: document.querySelector("#autoAuditGuide"),
+  runAutoAuditDashboardButton: document.querySelector("#runAutoAuditDashboardButton"),
+  runAutoAuditPageButton: document.querySelector("#runAutoAuditPageButton"),
+  openActionsButton: document.querySelector("#openActionsButton"),
+  openAuditFromActionsButton: document.querySelector("#openAuditFromActionsButton"),
   creditYear: document.querySelector("#creditYear"),
   queueList: document.querySelector("#queueList"),
   visibleCount: document.querySelector("#visibleCount"),
@@ -216,6 +229,12 @@ async function syncAutomationStatus() {
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "Automation sync failed");
     applyStatusData(data.status || {});
+    if (data.autoAudit) {
+      state.autoAudit = {
+        summary: data.autoAudit.summary || null,
+        actions: Array.isArray(data.autoAudit.actions) ? data.autoAudit.actions : [],
+      };
+    }
     state.automationSummary = data.summary || null;
     state.automationOnline = true;
     return true;
@@ -259,6 +278,7 @@ async function refreshSystemData({ includeStories = true } = {}) {
   }
   if (includeStories) await loadStoryRuns();
   await loadProductAudit();
+  await loadAutoAudit();
   await loadAutomationHealth();
   await loadPublisherStatus();
   render();
@@ -292,6 +312,25 @@ async function loadAutomationHealth() {
     state.automationHealth = data;
   } catch (error) {
     state.automationHealth = { ok: false, error: error.message };
+  }
+}
+
+async function loadAutoAudit() {
+  if (!els.dashboardActionsList && !els.actionPageList) return;
+  try {
+    const response = await fetch(`${AI_SERVER_URL}/api/auto-audit`, { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Auto audit gagal");
+    state.autoAudit = {
+      summary: data.summary || null,
+      actions: Array.isArray(data.actions) ? data.actions : [],
+    };
+  } catch (error) {
+    state.autoAudit = {
+      summary: null,
+      actions: [],
+      error: error.message,
+    };
   }
 }
 
@@ -799,6 +838,7 @@ function renderAutomationHealth() {
   const queue = health.queue || {};
   const publisher = health.publisher || state.publisher.config || {};
   const audit = health.audit || state.productAudit.summary || {};
+  const autoAudit = health.autoAudit || state.autoAudit.summary || {};
   const cards = [
     {
       label: "AI Server",
@@ -831,6 +871,12 @@ function renderAutomationHealth() {
       tone: (audit.reviewCount || audit.missingProductTitleCount) ? "warn" : "good",
     },
     {
+      label: "Auto Audit",
+      value: `${autoAudit.humanRequired || 0} tindakan`,
+      detail: `${autoAudit.autoPassed || 0} lulus auto`,
+      tone: (autoAudit.humanRequired || autoAudit.regenerateReady) ? "warn" : "good",
+    },
+    {
       label: "Publisher",
       value: publisher.liveReady ? "Live ready" : publisher.dryRun === false ? "Belum lengkap" : "Dry-run",
       detail: publisher.hasToken ? "Token disimpan" : "Token belum ada",
@@ -853,6 +899,114 @@ function renderAutomationHealth() {
   if (els.healthLastSync) {
     els.healthLastSync.textContent = `Sync ${new Date().toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}`;
   }
+}
+
+function renderActionCenter() {
+  const summary = state.autoAudit.summary || {};
+  const actions = state.autoAudit.actions || [];
+  const issueCount = summary.issueCount || actions.length || 0;
+  const badgeText = state.autoAudit.error ? "Auto audit offline" : issueCount ? `${issueCount} isu dipantau` : "Stabil";
+  const noteText = summary.lastAutoAuditAt ? `Auto audit terakhir ${summary.lastAutoAuditAt}` : "Auto audit berjalan bersama sync 60 saat";
+
+  [els.actionCenterBadge, els.actionPageBadge].forEach((badge) => {
+    if (!badge) return;
+    badge.textContent = badgeText;
+    badge.className = issueCount ? "warn" : "ready";
+  });
+  if (els.actionPageNote) els.actionPageNote.textContent = noteText;
+
+  renderActionSummary(els.dashboardActionSummary, summary);
+  renderActionSummary(els.actionPageSummary, summary);
+  renderActionList(els.dashboardActionsList, actions.slice(0, 3), true);
+  renderActionList(els.actionPageList, actions, false);
+  renderAutoAuditGuide(summary);
+}
+
+function renderActionSummary(container, summary) {
+  if (!container) return;
+  const cards = [
+    ["Perlu Akmal", summary.humanRequired || 0, "Tajuk produk belum sah"],
+    ["Boleh auto", summary.autoPassed || 0, "Lulus quality gate"],
+    ["Regenerate", summary.regenerateReady || 0, "Metadata ada, story perlu baiki"],
+    ["Dilindungi", summary.autoGuarded || 0, "Tidak masuk queue tanpa semakan"],
+  ];
+  container.replaceChildren(
+    ...cards.map(([label, value, detail]) => {
+      const item = document.createElement("article");
+      item.className = "action-summary-card";
+      item.append(
+        makeTextElement("span", "", label),
+        makeTextElement("strong", "", String(value)),
+        makeTextElement("small", "", detail),
+      );
+      return item;
+    }),
+  );
+}
+
+function renderActionList(container, actions, compact = false) {
+  if (!container) return;
+  if (state.autoAudit.error) {
+    container.replaceChildren(makeEmptyState("Auto audit offline", state.autoAudit.error));
+    return;
+  }
+  if (!actions.length) {
+    container.replaceChildren(
+      makeEmptyState(
+        "Tiada tindakan penting",
+        "ThreadsMe sedang pantau story, produk, queue dan Quality Gate secara automatik.",
+      ),
+    );
+    return;
+  }
+
+  container.replaceChildren(
+    ...actions.map((action) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `action-card ${action.priority || "medium"}${compact ? " compact" : ""}`;
+      const body = document.createElement("span");
+      body.className = "action-card-body";
+      body.append(
+        makeTextElement("strong", "", action.title || "Semak tindakan"),
+        makeTextElement("small", "", action.detail || action.nextStep || ""),
+        makeTextElement("em", "", action.nextStep || ""),
+      );
+      button.append(
+        makeTextElement("span", "action-number", action.number ? `#${action.number}` : "Auto"),
+        body,
+        makeStatusBadge(action.mode === "user_required" ? "review" : "issue", action.cta || "Semak"),
+      );
+      button.addEventListener("click", () => openActionTarget(action));
+      return button;
+    }),
+  );
+}
+
+function renderAutoAuditGuide(summary) {
+  if (!els.autoAuditGuide) return;
+  const items = [
+    ["Objektif", summary.objective || "Pastikan copywriting tepat dan bermanfaat untuk netizen Malaysia."],
+    ["Mode", summary.mode || "automasi stabil"],
+    ["Tajuk belum sah", `${summary.missingProductTitleCount || 0} siri`],
+    ["Semak terakhir", summary.lastAutoAuditAt || "Belum ada rekod"],
+  ];
+  els.autoAuditGuide.replaceChildren(
+    ...items.map(([label, value]) => {
+      const row = document.createElement("div");
+      row.append(makeTextElement("span", "", label), makeTextElement("strong", "", value));
+      return row;
+    }),
+  );
+}
+
+function openActionTarget(action) {
+  if (action?.number) {
+    els.auditNumbers.value = String(action.number);
+    state.selectedIndex = Math.max(0, action.number - 1);
+  }
+  showView(action?.targetView || "audit");
+  render();
 }
 
 function renderProductAudit() {
@@ -1649,6 +1803,43 @@ async function regenerateProductAuditStories() {
   }
 }
 
+async function runAutoAuditNow(sourceButton) {
+  const buttons = [els.runAutoAuditDashboardButton, els.runAutoAuditPageButton].filter(Boolean);
+  buttons.forEach((button) => {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  });
+  if (sourceButton) sourceButton.textContent = "Auto audit berjalan...";
+  try {
+    const response = await fetch(`${AI_SERVER_URL}/api/auto-audit/run`, {
+      method: "POST",
+      cache: "no-store",
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Auto audit gagal");
+    state.autoAudit = {
+      summary: data.summary || null,
+      actions: Array.isArray(data.actions) ? data.actions : [],
+    };
+    if (data.productAudit) {
+      state.productAudit = {
+        summary: data.productAudit.summary || null,
+        items: Array.isArray(data.productAudit.items) ? data.productAudit.items : [],
+      };
+    }
+    applyStatusData(data.status || {});
+    await loadAutomationHealth();
+    render();
+  } finally {
+    buttons.forEach((button) => {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    });
+    if (els.runAutoAuditDashboardButton) els.runAutoAuditDashboardButton.textContent = "Jalankan auto audit";
+    if (els.runAutoAuditPageButton) els.runAutoAuditPageButton.textContent = "Run auto audit sekarang";
+  }
+}
+
 function bindAuditControls() {
   if (!els.auditSaveMetadataButton) return;
   els.auditSaveMetadataButton.addEventListener("click", () => {
@@ -1661,6 +1852,18 @@ function bindAuditControls() {
       els.auditActionStatus.textContent = error.message;
     });
   });
+  els.runAutoAuditDashboardButton?.addEventListener("click", () => {
+    runAutoAuditNow(els.runAutoAuditDashboardButton).catch((error) => {
+      if (els.actionCenterBadge) els.actionCenterBadge.textContent = error.message;
+    });
+  });
+  els.runAutoAuditPageButton?.addEventListener("click", () => {
+    runAutoAuditNow(els.runAutoAuditPageButton).catch((error) => {
+      if (els.actionPageBadge) els.actionPageBadge.textContent = error.message;
+    });
+  });
+  els.openActionsButton?.addEventListener("click", () => showView("actions"));
+  els.openAuditFromActionsButton?.addEventListener("click", () => showView("audit"));
 }
 
 async function copyText(text) {
@@ -1749,6 +1952,7 @@ function render() {
   renderStatusTable();
   renderUnblockAdvice();
   renderAutomationHealth();
+  renderActionCenter();
   renderProductAudit();
   renderNetizenPreview();
   renderPublisher();
@@ -1804,7 +2008,7 @@ function animateActiveView() {
 
   const stackItems = Array.from(
     activePanel.querySelectorAll(
-      ".metrics-grid article, .automation-rail article, .health-card, .calendar-day-card, .audit-panel, .publisher-panel",
+      ".metrics-grid article, .automation-rail article, .health-card, .action-card, .calendar-day-card, .audit-panel, .publisher-panel",
     ),
   );
   if (stackItems.length) {
@@ -1831,7 +2035,7 @@ function bindTasteMotion() {
 
   if (window.ScrollTrigger) {
     gsap.registerPlugin(window.ScrollTrigger);
-    gsap.utils.toArray(".story-lab, .health-panel, .calendar-panel, .preview-panel, .audit-panel, .publisher-panel").forEach((element) => {
+    gsap.utils.toArray(".story-lab, .health-panel, .action-center-panel, .calendar-panel, .preview-panel, .audit-panel, .publisher-panel").forEach((element) => {
       if (element.dataset.tasteScrollBound === "true") return;
       element.dataset.tasteScrollBound = "true";
       gsap.fromTo(
@@ -1853,7 +2057,7 @@ function bindTasteMotion() {
   }
 
   document
-    .querySelectorAll(".nav-item, .metrics-grid article, .health-card, .queue-item, .calendar-day-card, .audit-panel, .publisher-panel")
+    .querySelectorAll(".nav-item, .metrics-grid article, .health-card, .action-card, .queue-item, .calendar-day-card, .audit-panel, .publisher-panel")
     .forEach((element) => {
       if (element.dataset.tasteBound === "true") return;
       element.dataset.tasteBound = "true";

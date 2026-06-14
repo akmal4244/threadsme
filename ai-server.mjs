@@ -827,6 +827,7 @@ async function runThreadsPublisherDue({ scheduleData, statusData, config, hasTok
 }
 
 async function runThreadsMeAutomation() {
+  const autoAudit = await runAutoProductAudit();
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const statusData = await readJsonFile(statusFile, {});
   const threadsConfig = await readThreadsConfig();
@@ -836,6 +837,12 @@ async function runThreadsMeAutomation() {
     autoCompletePastSlots: !publisherConfig.liveReady,
     publisher: publisherConfig,
   });
+  result.autoAudit = {
+    summary: autoAudit.summary,
+    actions: autoAudit.actions,
+    updated: autoAudit.updated,
+    protectedCount: autoAudit.protectedCount,
+  };
   await writeJsonFile(statusFile, result.status);
   await syncStoryRunsWithStatus(result.status, scheduleData);
   const publisherSummary = await runThreadsPublisherDue({
@@ -1495,7 +1502,7 @@ function productAuditSummary(scheduleData, runs) {
     if (post.source === "generated" && !String(post.productTitle || "").trim()) {
       missingProductTitle.push(number);
     }
-    if (post.qualityStatus === "review") reviewItems.push(number);
+    if (post.qualityStatus === "review" && String(post.productTitle || "").trim()) reviewItems.push(number);
     for (const key of ["main", "reply1", "reply2"]) {
       if (String(post[key] || "").length > 300) overLimit.push({ number, key, length: String(post[key] || "").length });
     }
@@ -1519,9 +1526,17 @@ function productAuditSummary(scheduleData, runs) {
     }
   }
 
+  const issueNumbers = uniqueSortedNumbers([
+    ...missingProductTitle,
+    ...reviewItems,
+    ...overLimit.map((item) => item.number),
+  ]);
+
   return {
     totalPosts: posts.length,
     generatedCount: generated.length,
+    issueNumbers,
+    issueCount: issueNumbers.length,
     missingProductTitle,
     missingProductTitleCount: missingProductTitle.length,
     reviewItems,
@@ -1565,6 +1580,192 @@ async function getProductAudit() {
     };
   });
   return { summary, items };
+}
+
+function buildAutoAuditReport(scheduleData, statusData, runs) {
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const audit = productAuditSummary(scheduleData, runs);
+  const scheduledSet = new Set(uniqueSortedNumbers(statusData.scheduled));
+  const postedSet = new Set(uniqueSortedNumbers(statusData.posted));
+  const failedSet = new Set(uniqueSortedNumbers(statusData.failed));
+  const actions = [];
+  let autoPassed = 0;
+  let autoGuarded = 0;
+  let humanRequired = 0;
+  let regenerateReady = 0;
+
+  posts.forEach((post, index) => {
+    const number = index + 1;
+    if (post.source !== "generated") return;
+    const productTitle = String(post.productTitle || "").trim();
+    const productCategory = String(post.productCategory || "").trim();
+    const affiliateLink = String(post.affiliateLink || scheduleData.affiliate_link || "").trim();
+    const lengths = ["main", "reply1", "reply2"].map((key) => String(post[key] || "").length);
+    const overLimit = lengths.some((length) => length > 300);
+    const statusLabel = postedSet.has(number)
+      ? "Lulus"
+      : scheduledSet.has(number)
+        ? "Pending"
+        : failedSet.has(number)
+          ? "Gagal"
+          : "Queue";
+
+    if (!productTitle) {
+      humanRequired += 1;
+      autoGuarded += 1;
+      actions.push({
+        number,
+        priority: "high",
+        mode: "user_required",
+        title: `Siri ${number}: sahkan tajuk produk`,
+        detail: "Produk belum sah. Siri ditahan.",
+        nextStep: "Isi tajuk sebenar dan regenerate jika perlu.",
+        status: statusLabel,
+        slot: post.slot || "",
+        cta: "Buka Audit Produk",
+        targetView: "audit",
+        snippet: String(post.main || "").slice(0, 150),
+      });
+      return;
+    }
+
+    const quality = auditStoryQuality(post, { productTitle, productCategory, affiliateLink }, affiliateLink);
+    if (quality.status === "passed" && !overLimit) {
+      autoPassed += 1;
+      return;
+    }
+
+    regenerateReady += 1;
+    autoGuarded += 1;
+    actions.push({
+      number,
+      priority: overLimit ? "high" : "medium",
+      mode: "auto_ready",
+      title: `Siri ${number}: regenerate disaran`,
+      detail: overLimit
+        ? "Ada bahagian melebihi 300 aksara. Sistem boleh regenerate bila metadata produk sudah tepat."
+        : "Quality Gate rasa story belum cukup selari dengan produk sebenar.",
+      nextStep: "Semak tajuk/kategori dan klik Regenerate story.",
+      status: statusLabel,
+      slot: post.slot || "",
+      cta: "Semak dan regenerate",
+      targetView: "audit",
+      snippet: String(post.main || "").slice(0, 150),
+      qualityReasons: quality.reasons || [],
+    });
+  });
+
+  const visibleActions = actions
+    .sort((a, b) => {
+      const rank = { high: 0, medium: 1, low: 2 };
+      return (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9) || a.number - b.number;
+    })
+    .slice(0, 24);
+
+  return {
+    summary: {
+      totalGenerated: audit.generatedCount,
+      issueCount: audit.issueCount,
+      humanRequired,
+      regenerateReady,
+      autoPassed,
+      autoGuarded,
+      missingProductTitleCount: audit.missingProductTitleCount,
+      reviewCount: audit.reviewCount,
+      overLimitCount: audit.overLimitCount,
+      lastAutoAuditAt: scheduleData.lastAutoProductAuditAt || "",
+      mode: humanRequired ? "perlukan input minimum" : regenerateReady ? "regenerate disaran" : "automasi stabil",
+      objective: "Pastikan story produk tepat, natural untuk netizen Malaysia, dan tidak masuk queue jika produk belum sah.",
+    },
+    actions: visibleActions,
+  };
+}
+
+async function runAutoProductAudit() {
+  const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+  const statusData = await readJsonFile(statusFile, {});
+  const runs = await readStoryRuns();
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  let touched = 0;
+  let protectedCount = 0;
+  let passedCount = 0;
+  let reviewCount = 0;
+
+  posts.forEach((post, index) => {
+    if (post.source !== "generated") return;
+    const number = index + 1;
+    const productTitle = String(post.productTitle || "").trim();
+    const productCategory = String(post.productCategory || "").trim() || inferProductCategoryFromText(
+      [post.main, post.reply1, post.reply2, post.generatedLabel, post.imageUrl].filter(Boolean).join(" "),
+    );
+    const affiliateLink = String(post.affiliateLink || scheduleData.affiliate_link || "").trim();
+    const previous = JSON.stringify({
+      qualityStatus: post.qualityStatus,
+      qualityScore: post.qualityScore,
+      productCategory: post.productCategory,
+      autoAuditStatus: post.autoAuditStatus,
+    });
+
+    if (productCategory && !post.productCategory) post.productCategory = productCategory;
+
+    if (!productTitle) {
+      protectedCount += 1;
+      reviewCount += 1;
+      post.qualityStatus = "review";
+      post.qualityScore = Math.min(Number(post.qualityScore || 0), 35);
+      post.qualityReasons = ["Tajuk produk sebenar belum disahkan. ThreadsMe tidak akan reka produk untuk pembaca."];
+      post.autoAuditStatus = "needs_product_title";
+      post.autoAuditDecision = "Perlu input tajuk produk sebelum boleh masuk queue.";
+      post.autoAuditAt = `${malaysiaNow()} GMT+8`;
+    } else {
+      const quality = auditStoryQuality(post, { productTitle, productCategory, affiliateLink }, affiliateLink);
+      post.qualityStatus = quality.status;
+      post.qualityScore = quality.score;
+      post.qualityChecks = quality.checks;
+      post.qualityReasons = quality.reasons;
+      post.autoAuditStatus = quality.status === "passed" ? "auto_passed" : "needs_regenerate";
+      post.autoAuditDecision = quality.status === "passed"
+        ? "Lulus auto audit. Story boleh terus ikut flow automation."
+        : "Metadata ada, tetapi story perlu regenerate atau semakan copywriting.";
+      post.autoAuditAt = `${malaysiaNow()} GMT+8`;
+      if (quality.status === "passed") passedCount += 1;
+      else reviewCount += 1;
+    }
+
+    const current = JSON.stringify({
+      qualityStatus: post.qualityStatus,
+      qualityScore: post.qualityScore,
+      productCategory: post.productCategory,
+      autoAuditStatus: post.autoAuditStatus,
+    });
+    if (previous !== current) touched += 1;
+    post.autoAuditNumber = number;
+  });
+
+  scheduleData.posts = posts;
+  scheduleData.lastAutoProductAuditAt = `${malaysiaNow()} GMT+8`;
+  scheduleData.lastAutoProductAuditNote =
+    `${touched} siri dikemas kini. ${protectedCount} siri dilindungi kerana tajuk produk belum sah.`;
+  await writeJsonFile(scheduleFile, scheduleData);
+
+  const automation = buildAutomatedStatus(scheduleData, statusData, Date.now());
+  await writeJsonFile(statusFile, {
+    ...automation.status,
+    lastAutoProductAuditAt: scheduleData.lastAutoProductAuditAt,
+    lastAutoProductAuditNote: scheduleData.lastAutoProductAuditNote,
+  });
+  await syncStoryRunsWithStatus(automation.status, scheduleData);
+
+  const report = buildAutoAuditReport(scheduleData, automation.status, runs);
+  return {
+    updated: touched,
+    protectedCount,
+    passedCount,
+    reviewCount,
+    status: automation.status,
+    productAudit: await getProductAudit(),
+    ...report,
+  };
 }
 
 async function updateProductAudit(input) {
@@ -1896,6 +2097,14 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/auto-audit") {
+      const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+      const statusData = await readJsonFile(statusFile, {});
+      const runs = await readStoryRuns();
+      sendJson(res, 200, { ok: true, ...buildAutoAuditReport(scheduleData, statusData, runs) });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/system-data") {
       const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
       const statusData = await readJsonFile(statusFile, {});
@@ -1908,6 +2117,8 @@ const server = createServer(async (req, res) => {
       const statusData = await readJsonFile(statusFile, {});
       const config = await readThreadsConfig();
       const hasToken = await hasThreadsToken(config);
+      const runs = await readStoryRuns();
+      const autoAudit = buildAutoAuditReport(scheduleData, statusData, runs);
       let hasKey = false;
       try {
         hasKey = Boolean(await getApiKey());
@@ -1928,7 +2139,8 @@ const server = createServer(async (req, res) => {
           lastAutomationAt: statusData.lastAutomationAt || "",
         },
         publisher: sanitizeThreadsConfig(config, hasToken),
-        audit: productAuditSummary(scheduleData, await readStoryRuns()),
+        audit: productAuditSummary(scheduleData, runs),
+        autoAudit: autoAudit.summary,
       });
       return;
     }
@@ -1984,6 +2196,11 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/product-audit/regenerate") {
       const input = await readBody(req);
       sendJson(res, 200, { ok: true, ...(await regenerateProductAudit(input)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/auto-audit/run") {
+      sendJson(res, 200, { ok: true, ...(await runAutoProductAudit()) });
       return;
     }
 

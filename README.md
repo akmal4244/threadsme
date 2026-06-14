@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | ThreadsMe |
 | Repo slug | threadsme |
-| Versi | v0.9.3 |
+| Versi | v0.9.4 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -34,6 +34,8 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Kalendar jadual harian dengan semakan 25 slot sehari.
 - Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, `Disediakan`, dan `Perlu Semak`.
 - Auto promote `Blocked` kepada `Pending` bila slot schedule kosong.
+- Auto Audit Produk berjalan bersama sync automation untuk tahan story yang belum sah produk dan ringkaskan tindakan penting.
+- Pusat `Tindakan Saya` memaparkan kerja minimum yang benar-benar perlukan input Akmal.
 - Product Audit untuk baiki siri lama yang tiada tajuk produk atau story tidak relevan.
 - Product Audit memaparkan ayat semasa `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` untuk semakan sebelum regenerate.
 - Quality Gate sebelum story masuk jadual: relevansi produk, hook, BM Malaysia, claim, CTA, dan had 300 aksara.
@@ -214,6 +216,12 @@ ThreadsMe kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas ThreadsMe berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.9.4
+
+- Tambah `Auto Audit Produk` yang berjalan bersama sync automation dan boleh dipaksa melalui UI.
+- Tambah halaman/menu `Tindakan Saya` untuk mengurangkan penglibatan manual dan fokus pada isu produk yang paling penting.
+- Redesign UI ke arah minimal premium: warna lebih warm, surface lebih flat, action ledger lebih jelas, dan responsive action cards.
 
 ### v0.9.3
 

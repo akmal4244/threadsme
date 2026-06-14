@@ -87,6 +87,7 @@ Snapshot ini dibuat pada `2026-06-14` dan boleh berubah apabila automasi berjala
 - Modul mesti dipisahkan: Ringkasan, Jana Story, Jadual Threads, Audit Produk, Automasi Live.
 - Status automation mesti sentiasa jelas pada pengguna.
 - Audit Produk mesti paparkan ayat semasa `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` supaya user boleh semak copywriting sebelum regenerate.
+- Auto Audit Produk mesti berjalan bersama sync automation. User hanya perlu dilibatkan untuk input yang sistem tidak patut reka, khususnya tajuk produk sebenar.
 - Gunakan gaya Kumo UI dan taste-skill sebagai arah visual: surface hierarchy, token warna semantik, spacing kemas, dan micro-motion ringan.
 
 ## Keutamaan Naik Taraf Seterusnya
