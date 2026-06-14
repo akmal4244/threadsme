@@ -57,7 +57,7 @@ Jika mahu Product Intelligence cuba endpoint Shopee yang memerlukan sesi login, 
 - Env var `SHOPEE_COOKIE`.
 - Fail private `work/private/shopee-cookie.txt`.
 
-Jangan commit cookie Shopee. Jika `hasShopeeCookie:false`, ThreadsMe masih akan cuba redirect metadata + DeepSeek tetapi mungkin label produk sebagai `story_inferred`.
+Jangan commit cookie Shopee. Jika `hasShopeeCookie:false`, ThreadsMe masih akan cuba redirect metadata + DeepSeek. Label `story_inferred` boleh lulus autopilot jika confidence cukup.
 
 ## Admin Auth dan CORS
 
@@ -98,22 +98,23 @@ Jangan commit dua fail ini.
 2. Masukkan link gambar atau upload/paste gambar jika ada.
 3. Klik `Auto semak produk Shopee` jika mahu semak sebelum generate, atau terus klik `Auto cipta & jadualkan`.
 4. ThreadsMe akan cuba isi `Tajuk produk` dan `Kategori / kegunaan produk` daripada link Shopee, metadata, dan DeepSeek.
-5. Edit tajuk/kategori jika mahu override manual.
+5. Edit tajuk/kategori hanya jika mahu override manual.
 6. Pilih jumlah posting sehari, default semasa ialah `25 posting / hari`.
 7. Klik `Auto cipta & jadualkan`.
 8. Semak output dan status di Jadual Threads.
 
-Jika produk masih tidak dapat dikenal pasti dengan yakin, sistem mesti menolak generate dan minta tajuk produk sebenar. Jika produk cuma `story_inferred`, siri ditahan sebagai `Perlu Semak` sehingga disahkan.
+Jika produk masih tidak dapat dikenal pasti dengan yakin, sistem akan guard generate supaya story tidak lari. Jika produk `story_inferred` tetapi confidence cukup, DeepSeek/Product Intel boleh sahkan sendiri tanpa tindakan Akmal.
 
 ## Product Audit dan Quality Gate
 
-- `Auto Audit Produk` berjalan bersama sync automation 60 saat. Ia re-check metadata, Quality Gate, dan tahan siri yang belum sah produk.
-- Auto Audit cuba auto isi metadata produk daripada link affiliate Shopee sebelum meminta tindakan manual.
-- Auto Audit hanya anggap produk sah jika `link_verified` atau `manual_verified`; `story_inferred` kekal perlu semak.
-- Guna menu `Tindakan Saya` untuk lihat hanya tindakan yang memerlukan input manusia, bukan semua log automation.
+- `Auto Audit Produk` berjalan bersama sync automation 60 saat. Ia re-check metadata, Quality Gate, auto-regenerate story yang tidak selari, dan guard siri yang confidence rendah.
+- Auto Audit cuba auto isi metadata produk daripada link affiliate Shopee dan DeepSeek tanpa meminta tindakan manual.
+- Auto Audit anggap produk sah jika `link_verified`, `manual_verified`, atau `story_inferred` dengan confidence cukup.
+- Guna menu `Tindakan Saya` untuk lihat ringkasan autopilot dan akses edit pilihan, bukan semua log automation.
 - Siri yang tidak cukup relevan akan ditahan sebagai `Perlu Semak`.
+- Sebelum kekal `Perlu Semak`, ThreadsMe cuba auto-regenerate sehingga had `THREADSME_AUTO_REGENERATE_LIMIT` supaya Akmal tidak perlu buat tindakan manual.
 - `Perlu Semak` tidak patut masuk Pending atau publisher live.
-- Guna menu `Audit Produk` untuk pilih batch seperti `26-35`, isi tajuk/kategori produk sebenar, kemudian klik `Simpan metadata` atau `Regenerate story`.
+- Guna menu `Audit Produk` untuk pilih batch seperti `26-35` jika mahu override, kemudian klik `Simpan metadata` atau `Regenerate story`.
 - Bila pilih satu siri, semak panel `Ayat semasa untuk semakan` dahulu. Panel ini memaparkan `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` bersama kiraan aksara supaya copywriting lama boleh dinilai sebelum regenerate.
 - Selepas story dibaiki, automation sync seterusnya akan kira semula slot Pending.
 

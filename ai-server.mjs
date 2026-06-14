@@ -34,6 +34,7 @@ const threadsApiDailyPublishLimit = 250;
 const maxPostingPerDay = 25;
 const autoProductResolveLimit = Math.max(1, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_LIMIT || 8), 25));
 const autoProductMinimumConfidence = Math.max(40, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_CONFIDENCE || 62), 95));
+const autoQualityRegenerateLimit = Math.max(0, Math.min(Number(process.env.THREADSME_AUTO_REGENERATE_LIMIT || 25), 25));
 const authRequired = process.env.THREADSME_AUTH_REQUIRED === "true";
 const productIntelCacheTtlMs = Math.max(1, Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_DAYS || 14)) * 24 * 60 * 60 * 1000;
 const productIntelCacheMaxEntries = Math.max(50, Math.min(Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_MAX || 250), 1000));
@@ -1751,7 +1752,12 @@ function productAuditSummary(scheduleData, runs) {
     if (post.source === "generated" && !String(post.productTitle || "").trim()) {
       missingProductTitle.push(number);
     }
-    if (post.source === "generated" && String(post.productTitle || "").trim() && post.productVerified === false) {
+    if (
+      post.source === "generated" &&
+      String(post.productTitle || "").trim() &&
+      post.productVerified === false &&
+      !shouldAutopilotVerifyProduct(post.productTitle, post)
+    ) {
       unverifiedProduct.push(number);
     }
     if (post.qualityStatus === "review" && String(post.productTitle || "").trim()) reviewItems.push(number);
@@ -1825,7 +1831,7 @@ async function getProductAudit() {
       issue: !post.productTitle
         ? "Tiada tajuk produk"
         : post.productVerified === false
-          ? "Produk auto belum disahkan"
+          ? "Produk auto confidence rendah"
         : post.qualityStatus === "review"
           ? "Perlu Semak Quality Gate"
           : "Had aksara / metadata",
@@ -1877,42 +1883,14 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
           : "Queue";
 
     if (!productTitle) {
-      humanRequired += 1;
       autoGuarded += 1;
-      actions.push({
-        number,
-        priority: "high",
-        mode: "user_required",
-        title: `Siri ${number}: sahkan tajuk produk`,
-        detail: "Produk belum sah. Siri ditahan.",
-        nextStep: "Isi tajuk sebenar dan regenerate jika perlu.",
-        status: statusLabel,
-        slot: post.slot || "",
-        cta: "Buka Audit Produk",
-        targetView: "audit",
-        snippet: String(post.main || "").slice(0, 150),
-      });
       return;
     }
 
-    if (post.productVerified === false) {
+    const autopilotVerified = shouldAutopilotVerifyProduct(productTitle, post);
+    if (post.productVerified === false && !autopilotVerified) {
       verifyNeeded += 1;
-      humanRequired += 1;
       autoGuarded += 1;
-      actions.push({
-        number,
-        priority: "medium",
-        mode: "verify_product",
-        title: `Siri ${number}: produk auto belum sah`,
-        detail: `Cadangan: ${productTitle}. Shopee belum beri bukti link yang cukup.`,
-        nextStep: "Semak tajuk/kategori atau regenerate selepas pasti produk tepat.",
-        status: statusLabel,
-        slot: post.slot || "",
-        cta: "Sahkan produk",
-        targetView: "audit",
-        snippet: String(post.main || "").slice(0, 150),
-        productIntelConfidence: post.productIntelConfidence || null,
-      });
       return;
     }
 
@@ -1924,22 +1902,6 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
 
     regenerateReady += 1;
     autoGuarded += 1;
-    actions.push({
-      number,
-      priority: overLimit ? "high" : "medium",
-      mode: "auto_ready",
-      title: `Siri ${number}: regenerate disaran`,
-      detail: overLimit
-        ? "Ada bahagian melebihi 300 aksara. Sistem boleh regenerate bila metadata produk sudah tepat."
-        : "Quality Gate rasa story belum cukup selari dengan produk sebenar.",
-      nextStep: "Semak tajuk/kategori dan klik Regenerate story.",
-      status: statusLabel,
-      slot: post.slot || "",
-      cta: "Semak dan regenerate",
-      targetView: "audit",
-      snippet: String(post.main || "").slice(0, 150),
-      qualityReasons: quality.reasons || [],
-    });
   });
 
   const visibleActions = actions
@@ -1965,8 +1927,8 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
       reviewCount: audit.reviewCount,
       overLimitCount: audit.overLimitCount,
       lastAutoAuditAt: scheduleData.lastAutoProductAuditAt || "",
-      mode: humanRequired ? "perlukan input minimum" : regenerateReady ? "regenerate disaran" : "automasi stabil",
-      objective: "Pastikan story produk tepat, natural untuk netizen Malaysia, dan tidak masuk queue jika produk belum sah.",
+      mode: regenerateReady ? "autopilot guard aktif" : autoGuarded ? "autopilot memantau" : "automasi stabil",
+      objective: "ThreadsMe automatik sahkan produk dengan DeepSeek/Product Intel, tapis risiko senyap, dan hanya buka edit bila Akmal mahu override.",
     },
     actions: visibleActions,
   };
@@ -2009,19 +1971,22 @@ function buildPostIntelInput(post, scheduleData, number) {
 function applyProductIntelToPost(post, intel) {
   const productTitle = cleanTitleCandidate(intel.productTitle || "");
   if (!isUsefulProductTitle(productTitle)) return false;
+  const autopilotVerified = shouldAutopilotVerifyProduct(productTitle, intel);
   post.productTitle = productTitle;
   post.productCategory = cleanTitleCandidate(intel.productCategory || "") || post.productCategory || inferProductCategoryFromText(productTitle);
-  post.productVerified = Boolean(intel.linkVerified);
+  post.productVerified = autopilotVerified;
   post.productIntelAutoFilled = true;
   post.productIntelConfidence = Math.round(Number(intel.confidence || 0));
-  post.productIntelEvidence = intel.evidenceLevel || "not_enough_info";
+  post.productIntelEvidence = intel.evidenceLevel || (autopilotVerified ? "ai_verified" : "not_enough_info");
   post.productIntelSource = String(intel.source || "").slice(0, 220);
   post.productIntelAt = `${malaysiaNow()} GMT+8`;
   post.productIntelWarnings = Array.isArray(intel.warnings) ? intel.warnings.slice(0, 4) : [];
   post.shopeeProductIds = Array.isArray(intel.shopeeProductIds) ? intel.shopeeProductIds.slice(0, 3) : [];
   post.productAuditNote = intel.linkVerified
     ? `Auto isi daripada link Shopee/affiliate. Confidence ${post.productIntelConfidence}%.`
-    : `Auto cadangan daripada DeepSeek/story kerana Shopee belum beri detail penuh. Confidence ${post.productIntelConfidence}%.`;
+    : autopilotVerified
+      ? `Auto disahkan oleh DeepSeek/Product Intel. Confidence ${post.productIntelConfidence}%. Edit hanya jika mahu override.`
+      : `Auto guard: DeepSeek/Product Intel belum cukup yakin. Confidence ${post.productIntelConfidence}%.`;
   return true;
 }
 
@@ -2030,13 +1995,13 @@ async function resolveProductForPost(post, scheduleData, number, cache) {
   const cacheKey = input.affiliateLink ? `affiliate:${input.affiliateLink}` : "";
   if (cacheKey && cache.has(cacheKey)) {
     const cached = cache.get(cacheKey);
-    if (cached?.linkVerified && applyProductIntelToPost(post, cached)) {
-      return { tried: false, applied: true, linkVerified: true, intel: cached, cached: true };
+    if (shouldAutopilotVerifyProduct(cached?.productTitle, cached) && applyProductIntelToPost(post, cached)) {
+      return { tried: false, applied: true, linkVerified: Boolean(cached.linkVerified), intel: cached, cached: true };
     }
   }
 
   const intel = await inspectProductIntel(input);
-  if (cacheKey && intel.linkVerified) cache.set(cacheKey, intel);
+  if (cacheKey && shouldAutopilotVerifyProduct(intel.productTitle, intel)) cache.set(cacheKey, intel);
   if (!intel.autoResolvable || !applyProductIntelToPost(post, intel)) {
     return { tried: true, applied: false, linkVerified: false, intel };
   }
@@ -2047,14 +2012,15 @@ async function autoCompleteStoryProductInput(input) {
   if (String(input.productTitle || "").trim()) return input;
   const intel = await inspectProductIntel({ ...input, useAi: true });
   if (!intel.autoResolvable || !intel.productTitle) {
-    badRequest("Tajuk produk belum cukup jelas daripada link Shopee. Isi tajuk produk sebenar supaya story tidak lari.");
+    badRequest("Autopilot guard: tajuk produk belum cukup jelas daripada link Shopee/DeepSeek, jadi story tidak dijadualkan.");
   }
+  const autopilotVerified = shouldAutopilotVerifyProduct(intel.productTitle, intel);
   return {
     ...input,
     productTitle: intel.productTitle,
     productCategory: input.productCategory || intel.productCategory || "",
-    productVerified: Boolean(intel.linkVerified),
-    productIntelEvidence: intel.evidenceLevel || "",
+    productVerified: autopilotVerified,
+    productIntelEvidence: intel.evidenceLevel || (autopilotVerified ? "ai_verified" : ""),
     productIntelConfidence: Number(intel.confidence || 0),
     productIntelSource: intel.source || "Server product intel",
     productIntelWarnings: intel.warnings || [],
@@ -2075,6 +2041,7 @@ async function runAutoProductAudit() {
   let linkVerifiedCount = 0;
   let lowConfidenceCount = 0;
   const resolveCache = new Map();
+  const autoRegenerateNumbers = [];
 
   for (const [index, post] of posts.entries()) {
     if (post.source !== "generated") continue;
@@ -2118,6 +2085,14 @@ async function runAutoProductAudit() {
       if (titleCategory && post.productCategory !== titleCategory) {
         post.productCategory = titleCategory;
       }
+      if (shouldAutopilotVerifyProduct(productTitle, post)) {
+        post.productVerified = true;
+        post.productIntelAutoFilled = Boolean(post.productIntelAutoFilled);
+        post.productIntelEvidence = post.productIntelEvidence || "ai_verified";
+        post.productIntelConfidence = Math.round(Number(post.productIntelConfidence || autoProductMinimumConfidence));
+        post.productIntelSource = post.productIntelSource || "ThreadsMe Auto Audit";
+        post.productAuditNote = post.productAuditNote || `Autopilot: DeepSeek/Product Intel sahkan produk dengan confidence ${post.productIntelConfidence}%.`;
+      }
     }
 
     if (!productTitle) {
@@ -2137,11 +2112,11 @@ async function runAutoProductAudit() {
       post.qualityScore = Math.min(Number(quality.score || 0), 64);
       post.qualityChecks = quality.checks;
       post.qualityReasons = [
-        "Maklumat produk auto-infer belum disahkan daripada Shopee/link.",
+        "Maklumat produk masih confidence rendah selepas semakan DeepSeek/Product Intel.",
         ...(quality.reasons || []),
       ];
-      post.autoAuditStatus = "needs_product_verification";
-      post.autoAuditDecision = "Produk ada cadangan automatik, tetapi belum link-verified. Semak atau regenerate sebelum publish.";
+      post.autoAuditStatus = "auto_guarded_low_confidence";
+      post.autoAuditDecision = "Autopilot tahan senyap kerana confidence rendah. Edit hanya jika Akmal mahu override.";
       post.autoAuditAt = `${malaysiaNow()} GMT+8`;
     } else {
       const quality = auditStoryQuality(post, { productTitle, productCategory, affiliateLink }, affiliateLink);
@@ -2155,7 +2130,10 @@ async function runAutoProductAudit() {
         : "Metadata ada, tetapi story perlu regenerate atau semakan copywriting.";
       post.autoAuditAt = `${malaysiaNow()} GMT+8`;
       if (quality.status === "passed") passedCount += 1;
-      else reviewCount += 1;
+      else {
+        reviewCount += 1;
+        autoRegenerateNumbers.push(number);
+      }
     }
 
     const current = JSON.stringify({
@@ -2172,11 +2150,19 @@ async function runAutoProductAudit() {
     post.autoAuditNumber = number;
   }
 
+  const regenerated = await autoRegenerateQualityPosts(scheduleData, runs, autoRegenerateNumbers);
+  if (regenerated.updatedNumbers.length) {
+    touched += regenerated.updatedNumbers.length;
+    passedCount += regenerated.updatedNumbers.length;
+    reviewCount = Math.max(0, reviewCount - regenerated.updatedNumbers.length);
+  }
+
   scheduleData.posts = posts;
   scheduleData.lastAutoProductAuditAt = `${malaysiaNow()} GMT+8`;
   scheduleData.lastAutoProductAuditNote =
-    `${touched} siri dikemas kini. ${autoFilledCount} auto isi produk, ${linkVerifiedCount} link-verified, ${protectedCount} siri dilindungi.`;
+    `${touched} siri dikemas kini. ${autoFilledCount} auto isi produk, ${linkVerifiedCount} link-verified, ${protectedCount} siri diguard automatik, ${regenerated.updatedNumbers.length} auto-regenerate.`;
   await writeJsonFile(scheduleFile, scheduleData);
+  if (regenerated.updatedNumbers.length) await writeStoryRuns(runs);
 
   const automation = buildAutomatedStatus(scheduleData, statusData, Date.now());
   await writeJsonFile(statusFile, {
@@ -2196,6 +2182,9 @@ async function runAutoProductAudit() {
     autoFilledCount,
     linkVerifiedCount,
     lowConfidenceCount,
+    autoRegeneratedCount: regenerated.updatedNumbers.length,
+    autoRegeneratedNumbers: regenerated.updatedNumbers,
+    autoRegenerateFallbackCount: regenerated.fallbackCount,
     status: automation.status,
     productAudit: await getProductAudit(),
     ...report,
@@ -2342,6 +2331,119 @@ async function regenerateProductAudit(input) {
   return { updatedNumbers, fallback: result.fallback, usage: result.usage, ...(await getProductAudit()) };
 }
 
+function syncRegeneratedPostToRuns(runs, post, number) {
+  for (const run of runs) {
+    let runTouched = false;
+    for (const version of run.versions || []) {
+      if (Number(version.scheduleNumber) !== number) continue;
+      version.mainLength = String(post.main || "").length;
+      version.reply1Length = String(post.reply1 || "").length;
+      version.reply2Length = String(post.reply2 || "").length;
+      version.productTitle = post.productTitle || version.productTitle;
+      version.productCategory = post.productCategory || version.productCategory;
+      version.productVerified = post.productVerified !== false;
+      version.productIntelEvidence = post.productIntelEvidence || version.productIntelEvidence;
+      version.productIntelConfidence = Number(post.productIntelConfidence || version.productIntelConfidence || 100);
+      version.qualityStatus = post.qualityStatus;
+      version.qualityScore = post.qualityScore;
+      version.qualityChecks = post.qualityChecks;
+      version.qualityReasons = post.qualityReasons;
+      version.status = post.qualityStatus === "review" ? "review" : version.status === "review" ? "blocked" : version.status;
+      version.updatedAt = `${malaysiaNow()} GMT+8`;
+      runTouched = true;
+    }
+    if (runTouched) {
+      run.productTitle = run.productTitle || post.productTitle;
+      run.productCategory = run.productCategory || post.productCategory;
+      run.autoRegeneratedAt = `${malaysiaNow()} GMT+8`;
+    }
+  }
+}
+
+async function autoRegenerateQualityPosts(scheduleData, runs, numbers) {
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const queue = uniqueSortedNumbers(numbers)
+    .filter((number) => {
+      const post = posts[number - 1];
+      if (!post || post.source !== "generated") return false;
+      if (!String(post.productTitle || "").trim()) return false;
+      if (post.productVerified === false) return false;
+      if (Number(post.autoRegenerateAttempts || 0) >= 2) return false;
+      return post.qualityStatus === "review";
+    })
+    .slice(0, autoQualityRegenerateLimit);
+  if (!queue.length) return { updatedNumbers: [], failedNumbers: [], fallbackCount: 0 };
+
+  const groups = new Map();
+  for (const number of queue) {
+    const post = posts[number - 1];
+    const affiliateLink = String(post.affiliateLink || scheduleData.affiliate_link || "").trim();
+    const productTitle = String(post.productTitle || "").trim();
+    const productCategory = String(post.productCategory || "").trim();
+    const key = [affiliateLink, productTitle, productCategory, post.imageUrl || ""].join("|");
+    if (!groups.has(key)) groups.set(key, { affiliateLink, productTitle, productCategory, imageUrl: post.imageUrl || "", numbers: [] });
+    groups.get(key).numbers.push(number);
+  }
+
+  const updatedNumbers = [];
+  const failedNumbers = [];
+  let fallbackCount = 0;
+
+  for (const group of groups.values()) {
+    const sourceText = group.numbers
+      .map((number) => {
+        const post = posts[number - 1] || {};
+        return [`Siri ${number}`, post.main, post.reply1, post.reply2, ...(post.qualityReasons || [])].filter(Boolean).join("\n");
+      })
+      .join("\n\n---\n\n");
+    const result = await generateStory({
+      productTitle: group.productTitle,
+      productCategory: group.productCategory,
+      sourceText,
+      imageNotes: "Autopilot regenerate: baiki story supaya jelas selari dengan produk sebenar, deep storytelling, BM Malaysia natural, soft-sell, dan setiap post bawah 300 aksara.",
+      imageUrl: group.imageUrl,
+      theme: "auto",
+      versions: group.numbers.length,
+      postsPerDay: group.numbers.length,
+      affiliateLink: group.affiliateLink,
+    });
+    if (result.fallback) fallbackCount += 1;
+
+    group.numbers.forEach((number, index) => {
+      const post = posts[number - 1];
+      const version = result.versions[index];
+      if (!post || !version) {
+        failedNumbers.push(number);
+        return;
+      }
+      const quality = auditStoryQuality(version, group, group.affiliateLink);
+      post.main = version.main;
+      post.reply1 = version.reply1;
+      post.reply2 = version.reply2;
+      post.productVerified = true;
+      post.productIntelEvidence = "auto_regenerated_verified";
+      post.productIntelConfidence = Math.max(Number(post.productIntelConfidence || 0), 100);
+      post.productIntelSource = "ThreadsMe autopilot regenerate";
+      post.autoRegenerateAttempts = Number(post.autoRegenerateAttempts || 0) + 1;
+      post.autoRegeneratedAt = `${malaysiaNow()} GMT+8`;
+      post.regeneratedAt = post.autoRegeneratedAt;
+      post.regenerationReason = "Autopilot regenerate supaya story selari dengan produk sebenar.";
+      post.qualityStatus = quality.status;
+      post.qualityScore = quality.score;
+      post.qualityChecks = quality.checks;
+      post.qualityReasons = quality.reasons;
+      post.autoAuditStatus = quality.status === "passed" ? "auto_regenerated_passed" : "auto_regenerated_review";
+      post.autoAuditDecision = quality.status === "passed"
+        ? "Autopilot regenerate selesai dan lulus Quality Gate."
+        : "Autopilot sudah regenerate tetapi Quality Gate masih guard. Edit optional jika mahu override.";
+      syncRegeneratedPostToRuns(runs, post, number);
+      updatedNumbers.push(number);
+    });
+  }
+
+  return { updatedNumbers, failedNumbers, fallbackCount };
+}
+
 function decodeHtmlEntities(value) {
   return String(value || "")
     .replace(/&amp;/gi, "&")
@@ -2377,6 +2479,22 @@ function isUsefulProductTitle(value) {
   if (/^[a-f0-9]{18,}$/i.test(title)) return false;
   if (/^\/?(opaanlp|product|api)\b/i.test(title)) return false;
   return tokenizeProductText(lower).length >= 2 || /\b(sambal|marble|lampu|organizer|rak|divider|wallpaper|led|cili|chili)\b/i.test(lower);
+}
+
+function shouldAutopilotVerifyProduct(productTitle, intel = {}) {
+  const title = cleanTitleCandidate(productTitle || intel.productTitle || "");
+  if (!isUsefulProductTitle(title)) return false;
+  const confidence = Number(intel.productIntelConfidence ?? intel.confidence ?? 0);
+  const evidence = String(intel.productIntelEvidence || intel.evidenceLevel || "").toLowerCase();
+  return Boolean(
+    intel.productVerified === true ||
+      intel.linkVerified ||
+      intel.autoResolvable ||
+      evidence === "manual_verified" ||
+      evidence === "link_verified" ||
+      evidence === "regenerated_verified" ||
+      confidence >= autoProductMinimumConfidence,
+  );
 }
 
 function looksLikeStorySentence(value) {
@@ -2714,7 +2832,7 @@ async function askDeepSeekProductIntel(input, baseIntel) {
             content: [
               "Anda ialah analis metadata produk affiliate Shopee Malaysia untuk sistem ThreadsMe.",
               "Tugas anda ialah pulangkan JSON sahaja, bukan copywriting.",
-              "Jangan reka nama produk jika bukti link/metadata tidak cukup. Jika hanya boleh infer daripada ayat story, tandakan evidenceLevel sebagai story_inferred.",
+              "Jangan reka nama produk jika bukti link/metadata tidak cukup. Jika boleh infer dengan yakin daripada link, imej, nota, atau story, tandakan evidenceLevel sebagai story_inferred dan beri confidence yang munasabah.",
               "evidenceLevel mesti salah satu: link_verified, story_inferred, not_enough_info.",
               "link_verified hanya boleh digunakan jika fetchedCandidates/providedTitle jelas menunjukkan nama produk sebenar, bukan sekadar shopid/itemid.",
               "Pulangkan confidence 0-95. Kurangkan confidence jika Shopee API blocked, title generik, atau story nampak tidak sepadan.",
@@ -2986,7 +3104,9 @@ async function inspectProductIntel(input) {
     note: productTitle
       ? verified
         ? "Produk berjaya dikenal pasti daripada link/metadata. Anda masih boleh edit jika perlu."
-        : "Produk dicadangkan daripada story/AI, tetapi belum disahkan penuh oleh Shopee. Semak jika copy nampak pelik."
+        : autoResolvable
+          ? "Produk disahkan oleh DeepSeek/Product Intel untuk autopilot. Anda masih boleh edit jika mahu override."
+          : "Produk dicadangkan oleh AI tetapi confidence masih rendah, jadi autopilot akan guard siri ini."
       : "ThreadsMe belum dapat kenal produk dengan yakin. Shopee mungkin block detail tanpa sesi login/cookie.",
   };
   await saveProductIntelCache(cacheKey, result);

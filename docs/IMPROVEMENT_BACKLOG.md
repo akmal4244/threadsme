@@ -10,7 +10,7 @@ Status v0.9.7: asas `Auto Audit Produk`, `Tindakan Saya`, `Product Audit`, previ
 
 Masalah:
 
-- Ada siri generated lama yang belum ada metadata `productTitle` atau masih `story_inferred`.
+- Ada siri generated lama yang belum ada metadata `productTitle` atau confidence produk masih rendah.
 - Story lama boleh tersasar daripada produk sebenar.
 
 Cadangan:

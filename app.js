@@ -1001,9 +1001,9 @@ function renderAutomationHealth() {
     },
     {
       label: "Auto Audit",
-      value: `${autoAudit.humanRequired || 0} tindakan`,
-      detail: `${autoAudit.autoPassed || 0} lulus auto`,
-      tone: (autoAudit.humanRequired || autoAudit.regenerateReady) ? "warn" : "good",
+      value: `${autoAudit.autoPassed || 0} auto`,
+      detail: `${autoAudit.autoGuarded || 0} diguard, edit pilihan`,
+      tone: autoAudit.regenerateReady ? "warn" : "good",
     },
     {
       label: "Publisher",
@@ -1054,11 +1054,11 @@ function renderActionCenter() {
 function renderActionSummary(container, summary) {
   if (!container) return;
   const cards = [
-    ["Perlu sah", summary.humanRequired || 0, "Produk belum cukup sah"],
+    ["Autopilot", summary.autoPassed || 0, "Lulus Quality Gate"],
     ["Auto isi", summary.autoFilled || 0, "Daripada Shopee/DeepSeek"],
-    ["Boleh auto", summary.autoPassed || 0, "Lulus quality gate"],
-    ["Regenerate", summary.regenerateReady || 0, "Metadata ada, story perlu baiki"],
-    ["Dilindungi", summary.autoGuarded || 0, "Tidak masuk queue tanpa semakan"],
+    ["Guarded", summary.autoGuarded || 0, "Ditahan senyap jika risiko"],
+    ["Auto baiki", summary.regenerateReady || 0, "Regenerate automatik"],
+    ["Edit pilihan", summary.humanRequired || 0, "Hanya bila Akmal mahu"],
   ];
   container.replaceChildren(
     ...cards.map(([label, value, detail]) => {
@@ -1119,7 +1119,7 @@ function renderAutoAuditGuide(summary) {
     ["Objektif", summary.objective || "Pastikan copywriting tepat dan bermanfaat untuk netizen Malaysia."],
     ["Mode", summary.mode || "automasi stabil"],
     ["Auto isi produk", `${summary.autoFilled || 0} siri`],
-    ["Belum link-verified", `${summary.verifyNeeded || summary.unverifiedProductCount || 0} siri`],
+    ["Auto guard", `${summary.verifyNeeded || summary.unverifiedProductCount || 0} siri confidence rendah`],
     ["Tajuk kosong", `${summary.missingProductTitleCount || 0} siri`],
     ["Semak terakhir", summary.lastAutoAuditAt || "Belum ada rekod"],
   ];
@@ -1163,7 +1163,7 @@ function renderProductAudit() {
     ["Total siri", summary.totalPosts || state.posts.length || 0],
     ["Generated", summary.generatedCount || 0],
     ["Tiada tajuk", summary.missingProductTitleCount || 0],
-    ["Auto belum sah", summary.unverifiedProductCount || 0],
+    ["Confidence rendah", summary.unverifiedProductCount || 0],
     ["Perlu semak", summary.reviewCount || 0],
   ];
   els.auditMetrics.replaceChildren(
@@ -1701,6 +1701,7 @@ async function runProductIntel(options = {}) {
           productTitle: data.productTitle,
           productCategory: data.productCategory || "",
           linkVerified: Boolean(data.linkVerified),
+          autoResolvable: Boolean(data.autoResolvable),
           evidenceLevel: data.evidenceLevel || "",
           confidence: Number(data.confidence || 0),
           source: data.source || "",
@@ -1716,13 +1717,13 @@ async function runProductIntel(options = {}) {
     const warningText = data.warnings?.length ? ` Nota: ${data.warnings[0]}` : "";
     if (els.productIntelNote) {
       els.productIntelNote.textContent = data.productTitle
-        ? `${data.linkVerified ? "Produk link-verified" : "Cadangan produk auto"} ditemui (${confidence}). ${data.note || "Anda boleh edit sebelum jana."}${warningText}`
-        : `${data.note || "ThreadsMe belum dapat kenal produk."}${warningText}`;
+        ? `${data.linkVerified ? "Produk link-verified" : "Produk disahkan AI"} ditemui (${confidence}). ${data.note || "Autopilot akan teruskan. Edit hanya jika mahu."}${warningText}`
+        : `${data.note || "ThreadsMe belum dapat kenal produk dengan yakin. Autopilot akan guard siri ini."}${warningText}`;
     }
     return data;
   } catch (error) {
     if (els.productIntelNote) {
-      els.productIntelNote.textContent = `Semakan produk gagal: ${error.message}. Isi tajuk produk manual sebelum jana.`;
+      els.productIntelNote.textContent = `Semakan produk gagal: ${error.message}. Autopilot akan guard output yang belum cukup yakin.`;
     }
     return null;
   } finally {
@@ -1743,9 +1744,10 @@ function getCurrentProductVerification(productTitle) {
   }
   const intel = state.productIntel;
   if (intel?.productTitle && intel.productTitle === currentTitle) {
+    const autopilotVerified = Boolean(intel.linkVerified || intel.autoResolvable || Number(intel.confidence || 0) >= 62);
     return {
-      productVerified: Boolean(intel.linkVerified),
-      productIntelEvidence: intel.evidenceLevel || (intel.linkVerified ? "link_verified" : "story_inferred"),
+      productVerified: autopilotVerified,
+      productIntelEvidence: intel.evidenceLevel || (autopilotVerified ? "ai_verified" : "story_inferred"),
       productIntelConfidence: Number(intel.confidence || 0),
       productIntelSource: intel.source || "Product Intel",
     };
@@ -1830,9 +1832,8 @@ function bindStoryGenerator() {
       productCategory = els.productCategory.value.trim();
       if (!productTitle || !intel?.autoResolvable) {
         els.storyOutput.value =
-          "ThreadsMe belum dapat sahkan produk daripada link Shopee dengan yakin. Isi Tajuk produk sebenar sekali, kemudian klik semula. Ini elak story cantik tapi salah produk.";
-        setAiStatus("Produk belum cukup jelas", "warn");
-        els.productTitle.focus();
+          "Autopilot guard: ThreadsMe belum cukup yakin tentang produk daripada link/gambar. Siri tidak dijadualkan supaya story tidak lari daripada produk sebenar. Gunakan Edit hanya kalau Akmal mahu override.";
+        setAiStatus("Autopilot guard aktif", "warn");
         return;
       }
     }
