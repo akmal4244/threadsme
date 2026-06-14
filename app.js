@@ -429,6 +429,17 @@ function requestLogoutConfirmation() {
     performLogout();
     return;
   }
+  const isLocalLock = !state.auth.authRequired && state.auth.hasPassword;
+  const title = document.querySelector("#logoutConfirmTitle");
+  const body = els.logoutConfirmModal.querySelector(".confirm-card p:not(.eyebrow)");
+  const confirmButton = els.confirmLogoutButton;
+  if (title) title.textContent = isLocalLock ? "Kunci skrin ThreadsMe?" : "Log keluar ThreadsMe?";
+  if (body) {
+    body.textContent = isLocalLock
+      ? "Dashboard akan dikunci pada browser ini. Automasi dan data siri tidak dipadam."
+      : "Sesi admin akan ditamatkan. Automasi dan data siri tidak dipadam.";
+  }
+  if (confirmButton) confirmButton.textContent = isLocalLock ? "Ya, kunci skrin" : "Ya, log keluar";
   els.logoutConfirmModal.hidden = false;
   window.setTimeout(() => els.cancelLogoutButton?.focus(), 0);
 }
