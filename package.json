@@ -1,6 +1,6 @@
 {
   "name": "threadsme",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "private": false,
   "type": "module",
   "description": "ThreadsMe untuk jana story, jadual Threads, dan automasi publisher.",
@@ -10,8 +10,13 @@
     "ai": "node ai-server.mjs 8788",
     "ai:hidden": "powershell -ExecutionPolicy Bypass -File scripts/start-ai-hidden.ps1",
     "deploy:xampp": "powershell -ExecutionPolicy Bypass -File scripts/deploy-xampp.ps1",
-    "check": "node --check app.js && node --check ai-server.mjs && node --check server.mjs && node --check scripts/qa-smoke.mjs",
-    "qa:smoke": "node scripts/qa-smoke.mjs"
+    "backup:runtime": "node scripts/backup-runtime.mjs",
+    "logs:rotate": "node scripts/rotate-logs.mjs",
+    "audit:stories": "node scripts/audit-repair-stories.mjs",
+    "audit:stories:fix": "node scripts/audit-repair-stories.mjs --apply",
+    "check": "node --check app.js && node --check ai-server.mjs && node --check server.mjs && node --check scripts/qa-smoke.mjs && node --check scripts/qa-production-safety.mjs && node --check scripts/audit-repair-stories.mjs && node --check scripts/backup-runtime.mjs && node --check scripts/rotate-logs.mjs",
+    "qa:smoke": "node scripts/qa-smoke.mjs",
+    "qa:production": "node scripts/qa-production-safety.mjs"
   },
   "keywords": [
     "threads",

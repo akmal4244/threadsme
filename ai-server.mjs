@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { access, copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { access, appendFile, copyFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
@@ -21,8 +21,10 @@ const statusFile = process.env.THREADSME_STATUS_FILE || path.join(runtimeRoot, "
 const publishLogFile = process.env.THREADSME_PUBLISH_LOG_FILE || path.join(runtimeRoot, "publish-log.json");
 const productIntelCacheFile = process.env.THREADSME_PRODUCT_INTEL_CACHE_FILE || path.join(runtimeRoot, "product-intel-cache.json");
 const backupRoot = process.env.THREADSME_BACKUP_DIR || path.join(workspaceRoot, "work", "backups");
+const logRoot = process.env.THREADSME_LOG_DIR || path.join(runtimeRoot, "logs");
 const threadsConfigFile = path.join(workspaceRoot, "work", "private", "threads-config.json");
 const threadsTokenFile = path.join(workspaceRoot, "work", "private", "threads-access-token.txt");
+const extensionBridgeFile = path.join(workspaceRoot, "work", "private", "extension-bridge.json");
 const adminAuthFile = path.join(workspaceRoot, "work", "private", "admin-auth.json");
 const adminSessionFile = path.join(workspaceRoot, "work", "private", "admin-sessions.json");
 const port = Number(process.env.THREADSME_AI_PORT || process.argv[2] || 8788);
@@ -44,6 +46,8 @@ const autoQualityRegenerateLimit = Math.max(0, Math.min(Number(process.env.THREA
 const authRequired = process.env.THREADSME_AUTH_REQUIRED === "true";
 const productIntelCacheTtlMs = Math.max(1, Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_DAYS || 14)) * 24 * 60 * 60 * 1000;
 const productIntelCacheMaxEntries = Math.max(50, Math.min(Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_MAX || 250), 1000));
+const logMaxBytes = Math.max(64 * 1024, Math.min(Number(process.env.THREADSME_LOG_MAX_BYTES || 1_048_576), 20 * 1024 * 1024));
+const logBackups = Math.max(1, Math.min(Number(process.env.THREADSME_LOG_BACKUPS || 5), 20));
 const allowedOrigins = new Set(
   String(
     process.env.THREADSME_ALLOWED_ORIGINS ||
@@ -203,6 +207,75 @@ function sanitizeThreadsConfig(config, hasToken) {
   };
 }
 
+function defaultExtensionBridgeConfig() {
+  return {
+    enabled: true,
+    autopilot: false,
+    targetScheduledCount: threadsScheduleLimit,
+    token: randomBytes(24).toString("hex"),
+    bridgeUrl: `http://${host}:${port}`,
+    lastSyncAt: "",
+    lastAccount: "",
+    threadsConnected: false,
+    lastNativeScheduledCount: 0,
+    nativeScheduledNumbers: [],
+    lastError: "",
+    lastProofs: [],
+  };
+}
+
+async function readExtensionBridgeConfig() {
+  const saved = await readJsonFile(extensionBridgeFile, {});
+  const config = { ...defaultExtensionBridgeConfig(), ...(saved || {}) };
+  let changed = !saved || typeof saved !== "object" || !saved.token;
+  if (!/^[a-f0-9]{32,}$/i.test(String(config.token || ""))) {
+    config.token = randomBytes(24).toString("hex");
+    changed = true;
+  }
+  config.enabled = config.enabled !== false;
+  config.autopilot = Boolean(config.autopilot);
+  config.targetScheduledCount = Math.max(1, Math.min(Number(config.targetScheduledCount || threadsScheduleLimit), threadsScheduleLimit));
+  config.bridgeUrl = `http://${host}:${port}`;
+  config.lastNativeScheduledCount = Math.max(0, Number(config.lastNativeScheduledCount || 0));
+  config.threadsConnected = Boolean(config.threadsConnected);
+  config.nativeScheduledNumbers = uniqueSortedNumbers(config.nativeScheduledNumbers);
+  config.lastProofs = Array.isArray(config.lastProofs) ? config.lastProofs.slice(-50) : [];
+  if (changed) await writeJsonFile(extensionBridgeFile, config);
+  return config;
+}
+
+async function writeExtensionBridgeConfig(config) {
+  const current = await readExtensionBridgeConfig();
+  const next = {
+    ...current,
+    ...config,
+    bridgeUrl: `http://${host}:${port}`,
+    targetScheduledCount: Math.max(1, Math.min(Number(config.targetScheduledCount || current.targetScheduledCount || threadsScheduleLimit), threadsScheduleLimit)),
+    nativeScheduledNumbers: uniqueSortedNumbers(config.nativeScheduledNumbers || current.nativeScheduledNumbers),
+    lastProofs: Array.isArray(config.lastProofs) ? config.lastProofs.slice(-50) : current.lastProofs,
+  };
+  await writeJsonFile(extensionBridgeFile, next);
+  return next;
+}
+
+function sanitizeExtensionBridgeConfig(config, { includeToken = false } = {}) {
+  return {
+    enabled: Boolean(config.enabled),
+    autopilot: Boolean(config.autopilot),
+    targetScheduledCount: config.targetScheduledCount || threadsScheduleLimit,
+    bridgeUrl: config.bridgeUrl || `http://${host}:${port}`,
+    token: includeToken ? config.token : undefined,
+    tokenPreview: config.token ? `${String(config.token).slice(0, 6)}...${String(config.token).slice(-4)}` : "",
+    lastSyncAt: config.lastSyncAt || "",
+    lastAccount: config.lastAccount || "",
+    threadsConnected: Boolean(config.threadsConnected),
+    lastNativeScheduledCount: Number(config.lastNativeScheduledCount || 0),
+    nativeScheduledNumbers: uniqueSortedNumbers(config.nativeScheduledNumbers),
+    lastError: config.lastError || "",
+    lastProofs: Array.isArray(config.lastProofs) ? config.lastProofs.slice(-10) : [],
+  };
+}
+
 class HttpError extends Error {
   constructor(status, message, options = {}) {
     super(message);
@@ -241,6 +314,12 @@ function hashPassword(password, salt) {
 function safeCompareHex(a, b) {
   const left = Buffer.from(String(a || ""), "hex");
   const right = Buffer.from(String(b || ""), "hex");
+  return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
+}
+
+function safeCompareString(a, b) {
+  const left = Buffer.from(String(a || ""), "utf8");
+  const right = Buffer.from(String(b || ""), "utf8");
   return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
 }
 
@@ -346,14 +425,18 @@ function expiredAuthCookie() {
   return "tm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0";
 }
 
-function applyCors(req, res) {
+function applyCors(req, res, pathname = "") {
   const origin = req.headers.origin;
   if (!origin) return true;
-  if (!allowedOrigins.has(origin)) return false;
+  const extensionOriginAllowed =
+    pathname.startsWith("/api/extension/") &&
+    pathname !== "/api/extension/pairing" &&
+    /^chrome-extension:\/\/[a-z]{32}$/i.test(origin);
+  if (!allowedOrigins.has(origin) && !extensionOriginAllowed) return false;
   res.setHeader("access-control-allow-origin", origin);
   res.setHeader("access-control-allow-credentials", "true");
   res.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
-  res.setHeader("access-control-allow-headers", "content-type,x-threadsme-csrf");
+  res.setHeader("access-control-allow-headers", "authorization,content-type,x-threadsme-csrf,x-threadsme-extension-token");
   res.setHeader("vary", "Origin");
   return true;
 }
@@ -363,6 +446,7 @@ function isPublicRoute(method, pathname) {
   if (method === "GET" && pathname === "/api/health") return true;
   if (method === "GET" && pathname === "/api/auth/status") return true;
   if (method === "POST" && ["/api/auth/login", "/api/auth/setup", "/api/auth/logout"].includes(pathname)) return true;
+  if (pathname.startsWith("/api/extension/") && pathname !== "/api/extension/pairing") return true;
   return false;
 }
 
@@ -419,8 +503,7 @@ async function readStoryRuns() {
 }
 
 async function writeStoryRuns(runs) {
-  await mkdir(path.dirname(storyRunsFile), { recursive: true });
-  await writeFile(storyRunsFile, JSON.stringify({ runs }, null, 2), "utf8");
+  await writeJsonFile(storyRunsFile, { runs });
 }
 
 async function syncStoryRunsWithStatus(statusData, scheduleData = null) {
@@ -479,7 +562,70 @@ async function readJsonFile(file, fallback) {
 
 async function writeJsonFile(file, value) {
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  const temp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${Date.now()}.tmp`);
+  await writeFile(temp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await rename(temp, file);
+}
+
+function safeLogValue(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof value === "string") {
+    return value
+      .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+      .replace(/sk-[A-Za-z0-9_-]{12,}/g, "sk-[redacted]")
+      .slice(0, 1200);
+  }
+  if (Array.isArray(value)) return value.slice(0, 50).map(safeLogValue);
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => {
+        if (/token|secret|password|cookie|key/i.test(key)) return [key, "[redacted]"];
+        return [key, safeLogValue(item)];
+      }),
+    );
+  }
+  return value;
+}
+
+async function rotateLogFile(file) {
+  try {
+    const info = await stat(file);
+    if (info.size < logMaxBytes) return;
+  } catch {
+    return;
+  }
+
+  for (let index = logBackups; index >= 1; index -= 1) {
+    const current = `${file}.${index}`;
+    const next = `${file}.${index + 1}`;
+    if (index === logBackups) {
+      await unlink(current).catch(() => null);
+      continue;
+    }
+    try {
+      await rename(current, next);
+    } catch {
+      // Older rotation file may not exist.
+    }
+  }
+  await rename(file, `${file}.1`).catch(() => null);
+}
+
+async function appendRuntimeLog(fileName, entry) {
+  const safeName = String(fileName || "api.log").replace(/[^a-z0-9_.-]/gi, "_");
+  const file = path.join(logRoot, safeName);
+  const payload = {
+    ts: new Date().toISOString(),
+    malaysiaTime: `${malaysiaNow()} GMT+8`,
+    ...safeLogValue(entry),
+  };
+  try {
+    await mkdir(logRoot, { recursive: true });
+    await rotateLogFile(file);
+    await appendFile(file, `${JSON.stringify(payload)}\n`, "utf8");
+  } catch (error) {
+    console.error(`[ThreadsMe log] ${error.message}`);
+  }
 }
 
 async function fileExists(file) {
@@ -642,9 +788,24 @@ function buildInferredProductCandidate(post = {}, run = {}, version = {}) {
   return createRecoveredProduct(fileTitle, "", "product_name_recovered", 78, context);
 }
 
+function knownAffiliateRecoveredProduct(affiliateLink) {
+  const affiliate = String(affiliateLink || "");
+  if (/5q5mTxqz8i/i.test(affiliate)) {
+    return createRecoveredProduct(
+      "DESSINI Italy Pressure Cooker",
+      "periuk tekanan, memasak cepat, dapur keluarga",
+      "affiliate_known_map",
+      99,
+      affiliate,
+    );
+  }
+  return null;
+}
+
 function resolveRecoveredProduct({ post, run, version, affiliateProductMap, scheduleData }) {
   const affiliate = String(post.affiliateLink || version.affiliateLink || run.affiliateLink || scheduleData.affiliate_link || "").trim();
   return (
+    knownAffiliateRecoveredProduct(affiliate) ||
     buildRunProductCandidate(run, version) ||
     (affiliate ? affiliateProductMap.get(affiliate) : null) ||
     buildInferredProductCandidate(post, run, version)
@@ -892,12 +1053,14 @@ async function writePublishLog(entries) {
 
 async function appendPublishLog(entry) {
   const entries = await readPublishLog();
-  entries.push({
+  const logEntry = {
     id: entry.id || `pub-${Date.now()}`,
     createdAt: `${malaysiaNow()} GMT+8`,
     ...entry,
-  });
+  };
+  entries.push(logEntry);
   await writePublishLog(entries);
+  await appendRuntimeLog("publish-events.log", logEntry);
   return entries;
 }
 
@@ -1374,6 +1537,9 @@ async function publishScheduleNumber(number, { force = false, config = null, has
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
   const post = posts[number - 1];
   if (!post) throw new HttpError(404, `Siri ${number} tidak wujud dalam jadual.`);
+  if (uniqueSortedNumbers(statusData.posted).includes(number)) {
+    return { skipped: true, reason: "Siri sudah Lulus/posted dan tidak akan dihantar semula untuk elak duplicate.", number };
+  }
   if (post.qualityStatus === "review") {
     return { skipped: true, reason: "Siri masih Perlu Semak dan tidak akan dipublish sehingga lulus Quality Gate.", number };
   }
@@ -1666,6 +1832,9 @@ function sendJson(res, status, body, headers = {}) {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "same-origin",
+    "x-frame-options": "DENY",
     ...headers,
   });
   res.end(JSON.stringify(body));
@@ -1875,6 +2044,71 @@ function hasSemanticProductRelevance(productText, fullText) {
   return matchedTerms.size >= rule.minimum || repeatedPrimary;
 }
 
+function inferStoryProductKind(value) {
+  const text = String(value || "").toLowerCase();
+  if (/sambal|nyet|khairulaming|cili|chili|pedas|lauk|selera/.test(text)) return "sambal";
+  if (/pressure\s*cooker|periuk\s+tekanan|dessini|cooker|kukus|stew|sup/.test(text)) return "pressure_cooker";
+  if (/poh\s*kong|\bgold\b|\bemas\b|bunga raya|24k|999/.test(text)) return "gold";
+  if (/solar|outdoor|street|lampu jalan|waterproof|laman|pagar|porch/.test(text)) return "solar";
+  if (/fairy|dawai|string\s*light|kelip|lampu\s*led/.test(text)) return "fairy_light";
+  if (/marble|flexi\s*marble|wallpaper|wall\s*sheet|dinding|dekor|deco/.test(text)) return "marble";
+  return "";
+}
+
+function inferAffiliateProductKind(link) {
+  const value = String(link || "");
+  if (/7VDqSOoKf3/i.test(value)) return "marble";
+  if (/5q5lqSXkro/i.test(value)) return "fairy_light";
+  if (/902oCbnlhL/i.test(value)) return "solar";
+  if (/5q5mTxqz8i/i.test(value)) return "pressure_cooker";
+  if (/2g8lFhByWQ/i.test(value)) return "sambal";
+  if (/9zvMgGgvG7/i.test(value)) return "gold";
+  return "";
+}
+
+function detectStoryProductAlignment(productText, fullText, affiliateLink = "") {
+  const productKind = inferStoryProductKind(productText);
+  const linkKind = inferAffiliateProductKind(affiliateLink);
+  const expectedKind = productKind || linkKind;
+  const text = String(fullText || "").toLowerCase();
+  const issues = [];
+
+  if (productKind && linkKind && productKind !== linkKind) {
+    issues.push("Link affiliate tidak sepadan dengan tajuk/kategori produk.");
+  }
+
+  if (!expectedKind) return { ok: !issues.length, productKind, linkKind, issues };
+
+  const leakRules = {
+    sambal: [
+      /marble|flexi\s*marble|wallpaper|feature\s*wall|dinding\s+(kosong|putih|kusam)|renovate|deko|hiasan|sofa|rak\s+senget|bilik\s+tidur|tanaman\s+hiasan|pressure\s*cooker|periuk\s+tekanan|dessini/,
+      /meja\s+(lusuh|calar)|sudut\s+kopi|instagrammable|background\s+rumah/,
+    ],
+    pressure_cooker: [
+      /sambal|nyet|khairulaming|pedas|lauk\s+ringkas|nasi\s+panas\s+dengan\s+sambal|marble|wallpaper|feature\s*wall|dinding|fairy|string\s*light|solar/,
+    ],
+    marble: [
+      /sambal|nyet|khairulaming|pedas|lauk|telur\s+goreng|ayam\s+goreng|ikan\s+goreng|nasi\s+panas|bekal\s+cepat|pressure\s*cooker|periuk\s+tekanan|dessini/,
+    ],
+    gold: [
+      /sambal|nyet|pedas|lauk|nasi\s+panas|marble|wallpaper|feature\s*wall|dinding\s+kosong|renovate/,
+    ],
+    fairy_light: [
+      /solar|street\s*lamp|lampu\s+jalan|waterproof|ip68|pagar|porch|laman|jalan\s+gelap/,
+    ],
+    solar: [
+      /fairy|string\s*light|lampu\s+dawai|kepala\s+katil|bilik\s+cozy|rak\s+kecil|tepi\s+cermin/,
+    ],
+  };
+
+  const matchedLeaks = (leakRules[expectedKind] || []).filter((pattern) => pattern.test(text));
+  if (matchedLeaks.length) {
+    issues.push("Story bocor kepada kategori produk lain dan boleh mengelirukan pembaca.");
+  }
+
+  return { ok: !issues.length, productKind, linkKind, issues };
+}
+
 function auditStoryQuality(version, input, affiliateLink) {
   const productTitle = String(input.productTitle || "").trim();
   const productCategory = String(input.productCategory || "").trim();
@@ -1888,6 +2122,7 @@ function auditStoryQuality(version, input, affiliateLink) {
   const productTokens = tokenizeProductText(`${productTitle} ${productCategory}`);
   const matchedProductTokens = productTokens.filter((token) => fullText.includes(token));
   const semanticRelevanceOk = hasSemanticProductRelevance(`${productTitle} ${productCategory}`, fullText);
+  const alignment = detectStoryProductAlignment(`${productTitle} ${productCategory}`, fullText, exactLink);
   const claimPattern = /\b(confirm|konfem|jamin|guarantee|100%|sembuh|rawat|hilang terus|paling murah|termurah|viral gila|wajib beli)\b/i;
   const typoPattern = /\b(tgok|macan|ubsuasana|mmg|x\s?yah|takde|sngt)\b/i;
   const hardIssues = [];
@@ -1914,6 +2149,10 @@ function auditStoryQuality(version, input, affiliateLink) {
   const relevanceOk = !productTokens.length || matchedProductTokens.length >= Math.min(2, productTokens.length) || semanticRelevanceOk;
   checks.push({ key: "relevance", label: "Relevan dengan tajuk/kategori produk", passed: relevanceOk });
   if (!relevanceOk) hardIssues.push("Story tidak cukup menyebut konteks produk sebenar.");
+
+  const linkProductOk = alignment.ok && (!alignment.linkKind || !alignment.productKind || alignment.linkKind === alignment.productKind);
+  checks.push({ key: "link_product_match", label: "Link affiliate sepadan dengan produk dan story", passed: linkProductOk });
+  if (!linkProductOk) hardIssues.push(...alignment.issues);
 
   const hookOk = parts.main.length >= 45 && !/^(produk ini|barang ini|jom beli|murah|sale)/i.test(parts.main);
   checks.push({ key: "hook", label: "Hook manusia, bukan iklan keras", passed: hookOk });
@@ -3171,6 +3410,7 @@ function productAuditSummary(scheduleData, runs) {
     for (const version of run.versions || []) {
       if (version.status === "review") {
         const number = Number(version.scheduleNumber);
+        if (!Number.isInteger(number) || number < 1 || !posts[number - 1]) continue;
         if (number && posts[number - 1]?.qualityStatus === "review") continue;
         runReviewItems.push({
           runId: run.id,
@@ -4601,6 +4841,364 @@ async function getPublisherStatus() {
   };
 }
 
+function getNativeProofMap(statusData) {
+  const value = statusData?.nativeThreadsScheduleProofs;
+  if (Array.isArray(value)) {
+    return value.reduce((map, item) => {
+      const number = Number(item?.number);
+      if (Number.isInteger(number) && number > 0) map[number] = item;
+      return map;
+    }, {});
+  }
+  return value && typeof value === "object" ? { ...value } : {};
+}
+
+function getExtensionToken(req) {
+  const auth = String(req.headers.authorization || "").trim();
+  if (/^bearer\s+/i.test(auth)) return auth.replace(/^bearer\s+/i, "").trim();
+  return String(req.headers["x-threadsme-extension-token"] || "").trim();
+}
+
+async function requireExtensionBridge(req) {
+  const bridge = await readExtensionBridgeConfig();
+  if (!bridge.enabled) forbidden("ThreadsMe Extension Bridge belum diaktifkan.");
+  const token = getExtensionToken(req);
+  if (!token || !safeCompareString(token, bridge.token)) unauthorized("Token extension ThreadsMe tidak sah.");
+  return bridge;
+}
+
+function productPreviewTerms(kind) {
+  const terms = {
+    marble: ["marble", "sheet", "wall", "dinding", "sticker", "flexi"],
+    sambal: ["sambal", "nyet", "khairulaming", "pedas", "cili"],
+    pressure_cooker: ["pressure", "cooker", "periuk", "tekanan", "dessini"],
+    fairy_light: ["fairy", "string", "dawai", "lampu", "led"],
+    solar: ["solar", "outdoor", "waterproof", "lampu"],
+    gold: ["gold", "emas", "poh", "kong", "24k", "999"],
+  };
+  return terms[kind] || [];
+}
+
+function productBlockTerms(kind) {
+  const terms = {
+    marble: ["sambal", "nyet", "khairulaming", "pressure cooker", "periuk tekanan", "dessini"],
+    sambal: ["marble", "wallpaper", "dinding", "pressure cooker", "periuk tekanan", "dessini"],
+    pressure_cooker: ["sambal", "nyet", "khairulaming", "marble", "wallpaper", "dinding"],
+    fairy_light: ["solar", "street lamp", "lampu jalan"],
+    solar: ["fairy", "string light", "lampu dawai"],
+    gold: ["sambal", "marble", "wallpaper"],
+  };
+  return terms[kind] || [];
+}
+
+function scheduleItemText(item) {
+  return [item?.text, item?.main, item?.reply1, item?.reply2, item?.preview]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function matchNativeScheduledItems(scheduleData, scheduledItems) {
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const matched = new Set();
+  for (const item of Array.isArray(scheduledItems) ? scheduledItems : []) {
+    const nativeText = scheduleItemText(item);
+    if (!nativeText) continue;
+    for (const [index, post] of posts.entries()) {
+      const number = index + 1;
+      if (matched.has(number)) continue;
+      const main = String(post.main || "").replace(/\s+/g, " ").trim().toLowerCase();
+      const reply2 = String(post.reply2 || "").replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+      const mainNeedle = main.slice(0, Math.min(80, main.length));
+      const replyNeedle = reply2.slice(0, Math.min(70, reply2.length));
+      if ((mainNeedle.length >= 28 && nativeText.includes(mainNeedle)) || (replyNeedle.length >= 28 && nativeText.includes(replyNeedle))) {
+        matched.add(number);
+        break;
+      }
+    }
+  }
+  return uniqueSortedNumbers([...matched]);
+}
+
+function futureExtensionSlot(post, scheduleData) {
+  const current = parseScheduleSlot(post?.slot);
+  if (Number.isFinite(current.getTime()) && current.getTime() > Date.now() + 15 * 60 * 1000) return post.slot;
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  return buildScheduleSlots(posts, 1, maxPostingPerDay)[0] || formatScheduleSlot(new Date(Date.now() + 30 * 60 * 1000));
+}
+
+function buildExtensionPostPayload(number, post, scheduleData) {
+  const affiliateLink = String(post.affiliateLink || scheduleData.affiliate_link || "").trim();
+  const productText = `${post.productTitle || ""} ${post.productCategory || ""}`;
+  const expectedProductKind = inferAffiliateProductKind(affiliateLink) || inferStoryProductKind(productText);
+  return {
+    number,
+    slot: futureExtensionSlot(post, scheduleData),
+    productTitle: post.productTitle || "",
+    productCategory: post.productCategory || "",
+    affiliateLink,
+    expectedProductKind,
+    previewMustIncludeAny: productPreviewTerms(expectedProductKind),
+    previewMustNotInclude: productBlockTerms(expectedProductKind),
+    main: String(post.main || "").trim(),
+    reply1: String(post.reply1 || "").trim(),
+    reply2: String(post.reply2 || "").trim(),
+    thread: [post.main, post.reply1, post.reply2].map((part) => String(part || "").trim()).filter(Boolean),
+  };
+}
+
+function buildExtensionQueue(scheduleData, statusData, bridge) {
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const postedSet = new Set(uniqueSortedNumbers(statusData.posted));
+  const failedSet = new Set(uniqueSortedNumbers(statusData.failed));
+  const localPending = uniqueSortedNumbers(statusData.scheduled).filter((number) => !postedSet.has(number) && !failedSet.has(number));
+  const blocked = uniqueSortedNumbers([...(statusData.remaining || []), ...(statusData.prepared || [])]).filter(
+    (number) => !postedSet.has(number) && !failedSet.has(number),
+  );
+  const proofMap = getNativeProofMap(statusData);
+  const proofNumbers = uniqueSortedNumbers([
+    ...Object.keys(proofMap).map(Number),
+    ...(bridge.nativeScheduledNumbers || []),
+  ]);
+  const proofSet = new Set(proofNumbers);
+  const orderedNumbers = uniqueSortedNumbers([...localPending, ...blocked]);
+  const rejected = [];
+
+  for (const number of orderedNumbers) {
+    if (proofSet.has(number)) continue;
+    const post = posts[number - 1];
+    if (!post) continue;
+    if (post.qualityStatus === "review") {
+      rejected.push({ number, reason: "quality_review" });
+      continue;
+    }
+    const affiliateLink = String(post.affiliateLink || scheduleData.affiliate_link || "").trim();
+    const quality = auditStoryQuality(post, {
+      productTitle: post.productTitle,
+      productCategory: post.productCategory,
+      affiliateLink,
+    }, affiliateLink);
+    if (quality.status === "review" || Number(quality.score || 0) < 75) {
+      rejected.push({ number, reason: "quality_gate", score: quality.score, reasons: quality.reasons || [] });
+      continue;
+    }
+    return {
+      targetScheduledCount: bridge.targetScheduledCount || threadsScheduleLimit,
+      localPendingCount: localPending.length,
+      blockedCount: blocked.length,
+      proofNumbers,
+      rejected: rejected.slice(0, 10),
+      next: buildExtensionPostPayload(number, post, scheduleData),
+    };
+  }
+
+  return {
+    targetScheduledCount: bridge.targetScheduledCount || threadsScheduleLimit,
+    localPendingCount: localPending.length,
+    blockedCount: blocked.length,
+    proofNumbers,
+    rejected: rejected.slice(0, 10),
+    next: null,
+  };
+}
+
+async function getExtensionBridgeStatus(req) {
+  const bridge = await requireExtensionBridge(req);
+  const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+  const statusData = await readJsonFile(statusFile, {});
+  const queue = buildExtensionQueue(scheduleData, statusData, bridge);
+  return {
+    bridge: sanitizeExtensionBridgeConfig(bridge),
+    queue: {
+      targetScheduledCount: queue.targetScheduledCount,
+      nativeScheduledCount: bridge.lastNativeScheduledCount || 0,
+      localPendingCount: queue.localPendingCount,
+      blockedCount: queue.blockedCount,
+      nextNumber: queue.next?.number || null,
+      rejected: queue.rejected,
+    },
+  };
+}
+
+async function getExtensionNext(req) {
+  const bridge = await requireExtensionBridge(req);
+  const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+  const statusData = await readJsonFile(statusFile, {});
+  const queue = buildExtensionQueue(scheduleData, statusData, bridge);
+  const nativeCount = Number(bridge.lastNativeScheduledCount || 0);
+  if (nativeCount >= queue.targetScheduledCount) {
+    return {
+      needsScheduling: false,
+      reason: "Threads native sudah cukup mengikut target extension.",
+      nativeScheduledCount: nativeCount,
+      targetScheduledCount: queue.targetScheduledCount,
+      next: null,
+      rejected: queue.rejected,
+    };
+  }
+  if (!queue.next) {
+    return {
+      needsScheduling: false,
+      reason: "Tiada siri yang lulus Quality Gate untuk extension schedule.",
+      nativeScheduledCount: nativeCount,
+      targetScheduledCount: queue.targetScheduledCount,
+      next: null,
+      rejected: queue.rejected,
+    };
+  }
+  return {
+    needsScheduling: true,
+    nativeScheduledCount: nativeCount,
+    targetScheduledCount: queue.targetScheduledCount,
+    next: queue.next,
+    rejected: queue.rejected,
+  };
+}
+
+async function syncExtensionNativeSchedule(req, input) {
+  const bridge = await requireExtensionBridge(req);
+  const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+  const statusData = await readJsonFile(statusFile, {});
+  const scheduledItems = Array.isArray(input.scheduledItems) ? input.scheduledItems : [];
+  const nativeScheduledCount = Math.max(0, Number(input.nativeScheduledCount ?? scheduledItems.length ?? 0));
+  const matchedNumbers = matchNativeScheduledItems(scheduleData, scheduledItems);
+  const nextBridge = await writeExtensionBridgeConfig({
+    ...bridge,
+    lastSyncAt: `${malaysiaNow()} GMT+8`,
+    lastAccount: String(input.account || "").slice(0, 120),
+    threadsConnected: Boolean(input.threadsConnected),
+    lastNativeScheduledCount: nativeScheduledCount,
+    nativeScheduledNumbers: matchedNumbers,
+    lastError: "",
+  });
+  const updatedStatus = {
+    ...statusData,
+    nativeScheduleMode: true,
+    lastNativeScheduleSyncAt: `${malaysiaNow()} GMT+8`,
+    lastNativeThreadsConnected: Boolean(input.threadsConnected),
+    lastNativeScheduledCount: nativeScheduledCount,
+    nativeScheduledMatchedNumbers: matchedNumbers,
+    systemStatus: "Threads native sync",
+    systemNote: `Extension kesan ${nativeScheduledCount} scheduled post dalam Threads${matchedNumbers.length ? `, ${matchedNumbers.length} dipadankan dengan siri lokal` : ""}.`,
+  };
+  await writeJsonFile(statusFile, updatedStatus);
+  await appendRuntimeLog("extension-events.log", {
+    event: "native_schedule_sync",
+    account: input.account || "",
+    threadsConnected: Boolean(input.threadsConnected),
+    nativeScheduledCount,
+    matchedNumbers,
+  });
+  return {
+    bridge: sanitizeExtensionBridgeConfig(nextBridge),
+    nativeScheduledCount,
+    matchedNumbers,
+    queue: buildExtensionQueue(scheduleData, updatedStatus, nextBridge),
+  };
+}
+
+async function recordExtensionProof(req, input) {
+  const bridge = await requireExtensionBridge(req);
+  const number = Number(input.number);
+  if (!Number.isInteger(number) || number < 1) badRequest("Nombor siri proof extension tidak sah.");
+  const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+  const statusData = await readJsonFile(statusFile, {});
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const post = posts[number - 1];
+  if (!post) throw new HttpError(404, `Siri ${number} tidak wujud dalam jadual.`);
+  if (uniqueSortedNumbers(statusData.posted).includes(number)) badRequest(`Siri ${number} sudah Lulus/posted dan tidak patut dijadualkan semula.`);
+
+  const slot = String(input.slot || post.slot || "").trim();
+  if (slot && post.slot !== slot) {
+    post.slot = slot;
+    scheduleData.posts = posts;
+    await writeJsonFile(scheduleFile, scheduleData);
+  }
+
+  const proofMap = getNativeProofMap(statusData);
+  const proof = {
+    number,
+    status: "native_scheduled",
+    scheduledAt: `${malaysiaNow()} GMT+8`,
+    slot: slot || post.slot || "",
+    account: String(input.account || bridge.lastAccount || "").slice(0, 120),
+    proofText: limitPostText(input.proofText || "", 280),
+    nativeScheduledCount: Math.max(0, Number(input.nativeScheduledCount || bridge.lastNativeScheduledCount || 0)),
+  };
+  proofMap[number] = proof;
+  const publishResults = statusData.publishResults && typeof statusData.publishResults === "object" ? statusData.publishResults : {};
+  const updatedStatus = {
+    ...statusData,
+    scheduled: addNumber(statusData.scheduled, number),
+    failed: removeNumber(statusData.failed, number),
+    prepared: removeNumber(statusData.prepared, number),
+    remaining: removeNumber(statusData.remaining, number),
+    nativeScheduleMode: true,
+    nativeThreadsScheduleProofs: proofMap,
+    lastNativeScheduleProofAt: `${malaysiaNow()} GMT+8`,
+    lastNativeScheduledCount: proof.nativeScheduledCount,
+    publishResults: {
+      ...publishResults,
+      [number]: {
+        status: "native_scheduled",
+        scheduledAt: proof.scheduledAt,
+        slot: proof.slot,
+        account: proof.account,
+        proofText: proof.proofText,
+      },
+    },
+    systemStatus: "Threads native - Pending",
+    systemNote: `Siri ${number} berjaya dijadualkan dalam Threads melalui extension dan kekal Pending sehingga slot keluar.`,
+  };
+  await writeJsonFile(statusFile, updatedStatus);
+  await syncStoryRunsWithStatus(updatedStatus, scheduleData);
+  await appendPublishLog({
+    number,
+    slot: proof.slot,
+    mode: "threadsme-extension",
+    status: "native_scheduled",
+    result: proof,
+  });
+  const nextBridge = await writeExtensionBridgeConfig({
+    ...bridge,
+    lastSyncAt: `${malaysiaNow()} GMT+8`,
+    lastAccount: proof.account,
+    threadsConnected: true,
+    lastNativeScheduledCount: proof.nativeScheduledCount,
+    nativeScheduledNumbers: addNumber(bridge.nativeScheduledNumbers, number),
+    lastProofs: [...(bridge.lastProofs || []), proof],
+    lastError: "",
+  });
+  await appendRuntimeLog("extension-events.log", {
+    event: "native_schedule_proof",
+    number,
+    slot: proof.slot,
+    account: proof.account,
+    nativeScheduledCount: proof.nativeScheduledCount,
+  });
+  return {
+    bridge: sanitizeExtensionBridgeConfig(nextBridge),
+    proof,
+    status: updatedStatus,
+  };
+}
+
+async function recordExtensionError(req, input) {
+  const bridge = await requireExtensionBridge(req);
+  const nextBridge = await writeExtensionBridgeConfig({
+    ...bridge,
+    lastError: String(input.error || "Extension error").slice(0, 260),
+    lastSyncAt: `${malaysiaNow()} GMT+8`,
+  });
+  await appendRuntimeLog("extension-events.log", {
+    event: "extension_error",
+    error: input.error || "Extension error",
+  });
+  return { bridge: sanitizeExtensionBridgeConfig(nextBridge) };
+}
+
 async function getShopeeCookieStatus() {
   const hasCookie = Boolean(await getShopeeCookie());
   return {
@@ -4655,6 +5253,109 @@ async function buildRuntimeBackup() {
   };
 }
 
+async function listBackupCandidates() {
+  const entries = await readdir(backupRoot, { withFileTypes: true }).catch(() => []);
+  const candidates = [];
+  for (const entry of entries) {
+    const full = path.join(backupRoot, entry.name);
+    const info = await stat(full).catch(() => null);
+    if (!info) continue;
+
+    if (entry.isFile() && /^threadsme-backup-.*\.json$/i.test(entry.name)) {
+      const data = await readJsonFile(full, null);
+      candidates.push({
+        source: "api-snapshot",
+        file: path.relative(workspaceRoot, full),
+        posts: Array.isArray(data?.schedule?.posts) ? data.schedule.posts.length : 0,
+        mtime: info.mtime.toISOString(),
+      });
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      const manifestFile = path.join(full, "manifest.json");
+      const scheduleCandidate = path.join(full, "threads-schedule.json");
+      const [manifest, scheduleData] = await Promise.all([
+        readJsonFile(manifestFile, null),
+        readJsonFile(scheduleCandidate, null),
+      ]);
+      const posts = Array.isArray(scheduleData?.posts)
+        ? scheduleData.posts.length
+        : Number(manifest?.counts?.posts || 0);
+      candidates.push({
+        source: /^runtime-cli-/i.test(entry.name) ? "cli-backup" : "folder-backup",
+        file: path.relative(workspaceRoot, full),
+        posts,
+        mtime: info.mtime.toISOString(),
+      });
+    }
+  }
+  return candidates.sort((a, b) => new Date(b.mtime).getTime() - new Date(a.mtime).getTime());
+}
+
+async function fileStatus(file, { json = false } = {}) {
+  try {
+    const info = await stat(file);
+    let validJson = null;
+    if (json) {
+      try {
+        JSON.parse(await readFile(file, "utf8"));
+        validJson = true;
+      } catch {
+        validJson = false;
+      }
+    }
+    return {
+      exists: true,
+      bytes: info.size,
+      updatedAt: info.mtime.toISOString(),
+      validJson,
+    };
+  } catch {
+    return { exists: false, bytes: 0, updatedAt: "", validJson: json ? false : null };
+  }
+}
+
+async function getOpsHealth() {
+  const config = await readThreadsConfig();
+  const hasToken = await hasThreadsToken(config);
+  const extension = await readExtensionBridgeConfig();
+  return {
+    ok: true,
+    runtime: {
+      root: runtimeRoot,
+      schedule: await fileStatus(scheduleFile, { json: true }),
+      status: await fileStatus(statusFile, { json: true }),
+      storyRuns: await fileStatus(storyRunsFile, { json: true }),
+      publishLog: await fileStatus(publishLogFile, { json: true }),
+      productIntelCache: await fileStatus(productIntelCacheFile, { json: true }),
+    },
+    backups: {
+      root: backupRoot,
+      latest: (await listBackupCandidates()).slice(0, 5).map((item) => ({
+        source: item.source,
+        file: item.file,
+        posts: item.posts,
+        mtime: item.mtime,
+      })),
+    },
+    logs: {
+      root: logRoot,
+      maxBytes: logMaxBytes,
+      backups: logBackups,
+      apiErrors: await fileStatus(path.join(logRoot, "api-errors.log")),
+      publishEvents: await fileStatus(path.join(logRoot, "publish-events.log")),
+      extensionEvents: await fileStatus(path.join(logRoot, "extension-events.log")),
+    },
+    publisher: sanitizeThreadsConfig(config, hasToken),
+    extension: sanitizeExtensionBridgeConfig(extension),
+    auth: {
+      authRequired,
+      source: (await readAdminAuth()).source,
+    },
+  };
+}
+
 async function saveRuntimeBackup() {
   const backup = await buildRuntimeBackup();
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -4703,7 +5404,8 @@ async function updatePublisherConfig(input) {
 
 const server = createServer(async (req, res) => {
   try {
-    const corsAllowed = applyCors(req, res);
+    const url = new URL(req.url || "/", `http://${host}:${port}`);
+    const corsAllowed = applyCors(req, res, url.pathname);
     if (!corsAllowed) {
       sendJson(res, 403, { ok: false, error: "Origin tidak dibenarkan." });
       return;
@@ -4714,7 +5416,6 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const url = new URL(req.url || "/", `http://${host}:${port}`);
     await requireAdmin(req, url.pathname);
 
     if (req.method === "GET" && url.pathname === "/api/health") {
@@ -4802,6 +5503,7 @@ const server = createServer(async (req, res) => {
       }
       const hasShopeeCookie = Boolean(await getShopeeCookie());
       const productIntelCache = await getProductIntelCacheStatus();
+      const extensionBridge = await readExtensionBridgeConfig();
       sendJson(res, 200, {
         ok: true,
         runtimeRoot,
@@ -4818,9 +5520,44 @@ const server = createServer(async (req, res) => {
         },
         publisher: sanitizeThreadsConfig(config, hasToken),
         publisherPreflight: buildPublisherPreflightSummary(scheduleData, statusData),
+        extension: sanitizeExtensionBridgeConfig(extensionBridge),
         audit: productAuditSummary(scheduleData, runs),
         autoAudit: autoAudit.summary,
       });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/extension/pairing") {
+      const bridge = await readExtensionBridgeConfig();
+      sendJson(res, 200, { ok: true, bridge: sanitizeExtensionBridgeConfig(bridge, { includeToken: true }) });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/extension/status") {
+      sendJson(res, 200, { ok: true, ...(await getExtensionBridgeStatus(req)) });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/extension/next") {
+      sendJson(res, 200, { ok: true, ...(await getExtensionNext(req)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/extension/sync") {
+      const input = await readBody(req);
+      sendJson(res, 200, { ok: true, ...(await syncExtensionNativeSchedule(req, input)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/extension/proof") {
+      const input = await readBody(req);
+      sendJson(res, 200, { ok: true, ...(await recordExtensionProof(req, input)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/extension/error") {
+      const input = await readBody(req);
+      sendJson(res, 200, { ok: true, ...(await recordExtensionError(req, input)) });
       return;
     }
 
@@ -4836,6 +5573,11 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/runtime-backup") {
       sendJson(res, 200, { ok: true, backup: await buildRuntimeBackup() });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/ops-health") {
+      sendJson(res, 200, await getOpsHealth());
       return;
     }
 
@@ -4923,6 +5665,19 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
     const message = error instanceof HttpError && error.expose ? error.message : "Ralat server dalaman.";
+    await appendRuntimeLog("api-errors.log", {
+      method: req.method || "",
+      path: (() => {
+        try {
+          return new URL(req.url || "/", `http://${host}:${port}`).pathname;
+        } catch {
+          return req.url || "";
+        }
+      })(),
+      status,
+      error: message,
+      internalError: error instanceof HttpError ? "" : error.message,
+    });
     if (!(error instanceof HttpError)) {
       console.error(`[ThreadsMe API] ${error.stack || error.message}`);
     }

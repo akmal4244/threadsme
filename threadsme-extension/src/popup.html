@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ms">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ThreadsMe Extension</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header>
+        <div class="mark">T</div>
+        <div>
+          <p>ThreadsMe</p>
+          <h1>Extension Bridge</h1>
+        </div>
+      </header>
+
+      <section class="panel">
+        <label>
+          <span>Bridge URL</span>
+          <input id="bridgeUrl" type="text" autocomplete="off" />
+        </label>
+        <label>
+          <span>Token pairing</span>
+          <input id="token" type="password" autocomplete="off" />
+        </label>
+        <label>
+          <span>Delay manusiawi</span>
+          <select id="humanDelayMs">
+            <option value="1200">1.2 saat</option>
+            <option value="1800">1.8 saat</option>
+            <option value="2500">2.5 saat</option>
+            <option value="4000">4 saat</option>
+          </select>
+        </label>
+        <button id="saveConfig" type="button">Simpan pairing</button>
+      </section>
+
+      <section class="status-card">
+        <span id="statusBadge">Belum semak</span>
+        <strong id="statusTitle">ThreadsMe Extension</strong>
+        <p id="statusText">Pair token daripada dashboard ThreadsMe, kemudian scan Threads.</p>
+      </section>
+
+      <section class="actions">
+        <button id="connectThreads" type="button">Connect akaun Threads</button>
+        <button id="testConnection" type="button">Test connection</button>
+        <button id="scanThreads" type="button">Scan Threads</button>
+        <button id="syncThreads" type="button">Sync ke ThreadsMe</button>
+        <button id="scheduleNext" type="button">Schedule next approved</button>
+        <button id="fillToTarget" type="button">Isi sampai 25</button>
+      </section>
+
+      <pre id="log" aria-live="polite"></pre>
+    </main>
+    <script src="./popup.js"></script>
+  </body>
+</html>

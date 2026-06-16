@@ -1406,7 +1406,8 @@ h2 {
 #aiStatus.ready,
 #auditSummaryBadge.ready,
 #publisherModeBadge.live,
-#shopeeCookieStatus.ready {
+#shopeeCookieStatus.ready,
+#extensionStatusBadge.live {
   border-color: rgba(18, 128, 92, 0.22);
   background: var(--kumo-success-soft);
   color: var(--kumo-success);
@@ -1416,7 +1417,8 @@ h2 {
 .mini-status.pending,
 .calendar-status-pill.pending,
 .badge.pending,
-#publisherModeBadge.dry {
+#publisherModeBadge.dry,
+#extensionStatusBadge.dry {
   border-color: rgba(18, 111, 103, 0.22);
   background: var(--kumo-brand-soft);
   color: var(--kumo-brand);
@@ -1439,7 +1441,8 @@ h2 {
 .badge.issue,
 #aiStatus.warn,
 #auditSummaryBadge.warn,
-#publisherModeBadge.warn {
+#publisherModeBadge.warn,
+#extensionStatusBadge.warn {
   border-color: rgba(197, 48, 48, 0.22);
   background: var(--kumo-danger-soft);
   color: var(--kumo-danger);
@@ -2047,6 +2050,49 @@ h2 {
   gap: 10px;
 }
 
+.extension-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.extension-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.extension-status-grid div,
+.extension-bridge-box {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--kumo-hairline);
+  border-radius: var(--radius);
+  background: var(--kumo-surface-soft);
+  padding: 11px;
+}
+
+.extension-status-grid span,
+.extension-bridge-box span {
+  color: var(--kumo-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.extension-status-grid strong,
+.extension-bridge-box code {
+  color: var(--kumo-ink);
+  font-size: 0.95rem;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.extension-help {
+  margin: 0;
+  color: var(--kumo-subtle);
+  font-size: 0.86rem;
+}
+
 .check-row {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
@@ -2154,9 +2200,29 @@ h2 {
     align-items: stretch;
   }
 
-  .side-note,
-  .side-credit {
+  .side-note {
     display: none;
+  }
+
+  .side-credit {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .side-credit > span,
+  .side-credit > strong {
+    display: none;
+  }
+
+  .side-credit .logout-button {
+    width: auto;
+    min-width: 132px;
+    margin-top: 0;
   }
 
   .metrics-grid {
@@ -2402,7 +2468,8 @@ h2 {
   }
 
   .calendar-grid,
-  .status-table {
+  .status-table,
+  .extension-status-grid {
     grid-template-columns: 1fr;
   }
 

@@ -21,6 +21,24 @@ async function delay(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForChildExit(child, timeoutMs = 5_000) {
+  if (child.exitCode !== null || child.signalCode) return;
+  await Promise.race([
+    new Promise((resolve) => child.once("exit", resolve)),
+    delay(timeoutMs),
+  ]);
+}
+
+async function stopChild(child) {
+  if (child.exitCode !== null || child.signalCode) return;
+  child.kill();
+  await waitForChildExit(child);
+  if (child.exitCode === null && !child.signalCode) {
+    child.kill("SIGKILL");
+    await waitForChildExit(child, 2_000);
+  }
+}
+
 async function request(pathname, options = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, options);
   let json = null;
@@ -93,6 +111,11 @@ async function run() {
     const evilCors = await request("/api/health", { headers: { origin: "http://evil.example" } });
     assert(evilCors.response.status === 403, "Origin luar sepatutnya ditolak.");
 
+    const extensionPairingCorsBlocked = await request("/api/extension/pairing", {
+      headers: { origin: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    });
+    assert(extensionPairingCorsBlocked.response.status === 403, "Pairing token tidak boleh dibaca terus oleh origin extension.");
+
     const setup = await request("/api/auth/setup", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -102,6 +125,31 @@ async function run() {
     const cookie = parseSessionCookie(setup.response);
     const csrfToken = setup.json.csrfToken;
     assert(csrfToken, "CSRF token tiada selepas login.");
+
+    const pairing = await request("/api/extension/pairing", {
+      headers: { cookie },
+    });
+    assert(pairing.response.status === 200 && pairing.json?.bridge?.token, "Pairing extension mesti pulang token untuk sesi admin.");
+    const extensionToken = pairing.json.bridge.token;
+
+    const extensionStatusNoToken = await request("/api/extension/status");
+    assert(extensionStatusNoToken.response.status === 401, "Extension status tanpa bearer token mesti ditolak.");
+
+    const extensionStatus = await request("/api/extension/status", {
+      headers: { authorization: `Bearer ${extensionToken}` },
+    });
+    assert(extensionStatus.response.status === 200 && extensionStatus.json?.queue, "Extension status dengan bearer token mesti berjaya.");
+
+    const extensionSync = await request("/api/extension/sync", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${extensionToken}`,
+        origin: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      body: JSON.stringify({ account: "QA Threads", threadsConnected: true, nativeScheduledCount: 0, scheduledItems: [] }),
+    });
+    assert(extensionSync.response.status === 200 && extensionSync.json?.nativeScheduledCount === 0, "Extension sync token-based mesti berjaya.");
 
     const csrfBlocked = await request("/api/runtime-backup/snapshot", {
       method: "POST",
@@ -188,9 +236,7 @@ async function run() {
 
     console.log("QA smoke passed");
   } finally {
-    child.kill();
-    await delay(250);
-    if (child.exitCode === null) child.kill("SIGKILL");
+    await stopChild(child);
     if (stderr.trim()) {
       console.error(stderr.trim());
     }

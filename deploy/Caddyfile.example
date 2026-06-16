@@ -1,0 +1,21 @@
+# Caddy reverse proxy example for ThreadsMe.
+# Replace threadsme.example.com before use.
+
+threadsme.example.com {
+    encode zstd gzip
+
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "same-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+
+    handle_path /threadsme/* {
+        reverse_proxy 127.0.0.1:8791
+    }
+
+    handle_path /api/* {
+        reverse_proxy 127.0.0.1:8788
+    }
+}

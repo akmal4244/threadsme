@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | ThreadsMe |
 | Repo slug | threadsme |
-| Versi | v0.9.7 |
+| Versi | v0.10.0 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -45,6 +45,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Auto Audit boleh auto isi dan auto sahkan metadata produk daripada link affiliate Shopee, gambar, nota, dan DeepSeek jika confidence cukup.
 - Product Intel cache runtime supaya link affiliate yang sama tidak perlu disemak berulang selepas restart.
 - Automation Health untuk semak AI server, DeepSeek key, Pending 25/25, Blocked, publisher, Preflight, dan audit issue.
+- ThreadsMe Extension Bridge untuk connect akaun Threads yang sudah login di Chrome, scan scheduled post sebenar, sync status balik ke dashboard, dan isi slot kosong dengan guard preview produk.
 - Preview Netizen untuk semak rasa manusia sebelum publish.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
 - Mode single-user local tanpa login secara default, dengan admin auth optional jika mahu public deploy.
@@ -67,6 +68,26 @@ Cadangan input minimum untuk hasil paling tepat:
 - `Nota gambar / produk`: konteks emosi atau situasi, contoh `sesuai untuk nasi panas, telur, ayam goreng, hari malas masak`.
 
 ThreadsMe hanya akan guard generate jika produk masih tidak dapat dikenal pasti dengan yakin selepas auto product-intel. Jika produk sudah sah tetapi story tidak cukup relevan, Auto Audit akan cuba auto-regenerate sehingga 25 siri satu batch. Prompt DeepSeek juga dikunci supaya AI tidak tukar kategori produk atau reka manfaat yang tidak berkaitan.
+
+## ThreadsMe Extension Bridge
+
+Flow terbaik untuk akaun Threads ialah:
+
+1. Akmal login Threads dalam Chrome seperti biasa.
+2. Buka ThreadsMe > `Automasi Live` > `ThreadsMe Extension`.
+3. Klik `Dapatkan pairing`, kemudian salin token pairing.
+4. Di Chrome, buka `chrome://extensions`, aktifkan Developer Mode, dan `Load unpacked` folder `threadsme-extension`.
+5. Paste Bridge URL dan token dalam popup extension.
+6. Klik `Connect akaun Threads`, login jika perlu, kemudian klik `Scan Threads` dan `Sync ke ThreadsMe`.
+
+Status dianggap lengkap bila dashboard memaparkan `Semua sistem online`:
+
+- ThreadsMe API online.
+- Token extension valid.
+- Akaun Threads dikesan login dalam Chrome.
+- Scheduled post sebenar di Threads tally dengan target 25/25.
+
+Extension tidak simpan username/password Threads. Ia hanya menggunakan sesi Chrome yang Akmal sendiri sudah login. Jika preview link Shopee bercanggah dengan story, extension akan tahan schedule dan hantar error ke ThreadsMe supaya story/link tidak salah produk.
 
 ## Cara Jalankan
 
@@ -172,7 +193,7 @@ ThreadsMe tidak commit API key ke repo.
 Pilihan DeepSeek:
 
 ```bash
-set DEEPSEEK_API_KEY=sk-...
+set DEEPSEEK_API_KEY=<deepseek_api_key>
 npm run ai
 ```
 
@@ -191,7 +212,7 @@ work/private/shopee-cookie.txt
 Threads access token pula boleh disimpan melalui GUI Publisher atau melalui env:
 
 ```bash
-set THREADS_ACCESS_TOKEN=...
+set THREADS_ACCESS_TOKEN=<threads_access_token>
 ```
 
 Fail private yang diabaikan git:
@@ -212,14 +233,62 @@ Semak syntax dan smoke test API:
 ```bash
 npm run check
 npm run qa:smoke
+npm run qa:production
+npm run audit:stories
 ```
 
 Smoke test akan hidupkan AI server temp, uji auth setup, CSRF, CORS reject, generate story fallback, simpan cookie Shopee kosong, dan buat runtime backup.
+
+Production safety test akan hidupkan runtime sementara dengan `THREADSME_AUTH_REQUIRED=true`, semak endpoint protected tidak boleh diakses tanpa login, sahkan CSRF, pastikan publisher live tidak boleh berjalan tanpa token/guard, block pairing extension dari origin yang salah, dan uji snapshot backup protected.
+
+Utility operasi:
+
+```bash
+npm run backup:runtime
+npm run logs:rotate
+```
+
+`backup:runtime` menyalin runtime JSON utama ke `work/backups/runtime-cli-*` tanpa menyalin secret dalam `work/private`. `logs:rotate` rotate fail `.log` di `work/runtime/logs` atau `THREADSME_LOG_DIR`.
+
+## Production / Private Deployment
+
+ThreadsMe boleh kekal local single-user di `http://localhost/threadsme/`, atau disediakan sebagai private/internal production dengan konfigurasi lebih ketat.
+
+Fail rujukan:
+
+| Fail | Tujuan |
+| --- | --- |
+| `.env.production.example` | Template environment production tanpa secret sebenar. |
+| `deploy/nginx.example.conf` | Contoh reverse proxy HTTPS Nginx. |
+| `deploy/Caddyfile.example` | Contoh reverse proxy HTTPS Caddy. |
+| `.github/workflows/ci.yml` | CI untuk syntax, smoke, production safety, story audit dan extension syntax. |
+
+Checklist minimum untuk private/public mode:
+
+1. Copy `.env.production.example` ke secret manager/server env dan isi nilai sebenar di server sahaja.
+2. Set `THREADSME_AUTH_REQUIRED=true`.
+3. Set `THREADSME_ALLOWED_ORIGINS` kepada domain HTTPS sebenar sahaja.
+4. Jalankan AI/API pada loopback, contoh `127.0.0.1:8788`.
+5. Letakkan reverse proxy HTTPS di hadapan static UI dan API.
+6. Jadualkan `npm run backup:runtime` dan `npm run logs:rotate`.
+7. Pastikan publisher kekal `dryRun=true` sehingga go-live checklist selesai.
+8. Jalankan `npm run check && npm run qa:smoke && npm run qa:production && npm run audit:stories`.
+
+Endpoint operasi:
+
+```text
+GET /api/ops-health
+```
+
+Endpoint ini memaparkan kesihatan runtime, backup, log, publisher dan extension secara disanitasi. Dalam production auth-required, endpoint ini memerlukan sesi admin.
 
 ## Struktur Sistem
 
 ```text
 threadsme/
+|-- .github/
+|   `-- workflows/
+|       `-- ci.yml
 |-- assets/
 |   |-- flexi-marble-sheet.png
 |   |-- flexi-marble-sheet.webp
@@ -228,13 +297,24 @@ threadsme/
 |   |   `-- gsap.min.js
 |   |-- threadsme-favicon.svg
 |   `-- threadsme-logo.svg
+|-- deploy/
+|   |-- Caddyfile.example
+|   `-- nginx.example.conf
 |-- docs/
 |   |-- IMPROVEMENT_BACKLOG.md
-|   `-- OPERATION_RUNBOOK.md
+|   |-- OPERATION_RUNBOOK.md
+|   `-- THREADSME_EXTENSION.md
 |-- scripts/
+|   |-- audit-repair-stories.mjs
+|   |-- backup-runtime.mjs
 |   |-- deploy-xampp.ps1
+|   |-- qa-production-safety.mjs
 |   |-- qa-smoke.mjs
+|   |-- rotate-logs.mjs
 |   `-- start-ai-hidden.ps1
+|-- threadsme-extension/
+|   |-- manifest.json
+|   `-- src/
 |-- ai-server.mjs
 |-- app.js
 |-- index.html
@@ -246,6 +326,7 @@ threadsme/
 |-- threads_flexi_marble_schedule.json
 |-- package.json
 |-- .env.example
+|-- .env.production.example
 |-- .gitignore
 `-- README.md
 ```
@@ -300,6 +381,17 @@ ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jad
 `Pending` ialah queue ThreadsMe yang perlu ditally dengan keadaan sebenar Threads. Jika Publisher API `liveReady`, bukti datang daripada Threads API. Jika posting sudah dimasukkan melalui schedule native Threads/Chrome, status `Lulus` boleh menggunakan bukti `native_schedule_assumed` apabila masa slot sudah lepas dan scheduled posts dalam akaun Threads berkurang. Semua bukti disimpan dalam `publishResults`.
 
 ## Version Log
+
+### v0.10.0
+
+- Tambah production safety QA untuk auth-required mode, CSRF, CORS, dry-run/live guard, extension origin guard dan protected backup.
+- Tambah `.env.production.example` supaya secret tidak hardcoded dan production mode boleh disediakan melalui environment.
+- Tambah reverse proxy contoh untuk Nginx dan Caddy dengan TLS, proxy API dan security headers asas.
+- Tambah `npm run backup:runtime` untuk backup runtime JSON tanpa menyalin `work/private`.
+- Tambah `npm run logs:rotate` dan runtime JSONL logs untuk API errors, publish events dan extension events.
+- Tambah `/api/ops-health` untuk semakan runtime, backup, log, auth, publisher dan extension secara disanitasi.
+- Tambah GitHub Actions CI untuk syntax, smoke, production safety, story audit dan extension syntax.
+- Kekalkan publisher dalam mode selamat; live publish masih perlu go-live checklist dan confirmation manusia.
 
 ### v0.9.9
 

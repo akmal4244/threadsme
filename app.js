@@ -30,6 +30,10 @@ const state = {
     preflight: null,
     lastEntries: [],
   },
+  extensionBridge: {
+    config: null,
+    token: "",
+  },
   shopeeCookie: { hasCookie: false, source: "none", file: "" },
 };
 
@@ -175,6 +179,15 @@ const els = {
   publisherHelpText: document.querySelector("#publisherHelpText"),
   publisherLogNote: document.querySelector("#publisherLogNote"),
   publisherLogList: document.querySelector("#publisherLogList"),
+  extensionStatusBadge: document.querySelector("#extensionStatusBadge"),
+  extensionBridgeStatusText: document.querySelector("#extensionBridgeStatusText"),
+  extensionAccountText: document.querySelector("#extensionAccountText"),
+  extensionNativeCountText: document.querySelector("#extensionNativeCountText"),
+  extensionBridgeUrl: document.querySelector("#extensionBridgeUrl"),
+  extensionTokenPreview: document.querySelector("#extensionTokenPreview"),
+  extensionHelpText: document.querySelector("#extensionHelpText"),
+  loadExtensionPairingButton: document.querySelector("#loadExtensionPairingButton"),
+  copyExtensionTokenButton: document.querySelector("#copyExtensionTokenButton"),
   threadsUserId: document.querySelector("#threadsUserId"),
   threadsAccessToken: document.querySelector("#threadsAccessToken"),
   threadsEnabled: document.querySelector("#threadsEnabled"),
@@ -600,6 +613,7 @@ async function loadAutomationHealth() {
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "Automation health gagal");
     state.automationHealth = data;
+    if (data.extension) state.extensionBridge.config = data.extension;
   } catch (error) {
     state.automationHealth = { ok: false, error: error.message };
   }
@@ -1128,6 +1142,11 @@ function renderAutomationHealth() {
   const preflight = health.publisherPreflight || state.publisher.preflight || {};
   const audit = health.audit || state.productAudit.summary || {};
   const autoAudit = health.autoAudit || state.autoAudit.summary || {};
+  const extension = health.extension || state.extensionBridge.config || {};
+  const extensionOnline =
+    Boolean(extension.lastSyncAt) &&
+    Boolean(extension.threadsConnected) &&
+    (extension.lastNativeScheduledCount || 0) >= Math.min(extension.targetScheduledCount || THREADS_SCHEDULE_LIMIT, THREADS_SCHEDULE_LIMIT);
   const cards = [
     {
       label: "AI Server",
@@ -1182,6 +1201,12 @@ function renderAutomationHealth() {
         ? `${preflight.lastStatus || "semak"} | score min ${preflight.minScore || 82}`
         : `Final QA sebelum publish | score min ${preflight.minScore || 82}`,
       tone: preflight.blockedCount || preflight.waitingAiCount ? "warn" : "good",
+    },
+    {
+      label: "Extension",
+      value: extensionOnline ? "Online penuh" : extension.lastSyncAt ? `${extension.lastNativeScheduledCount || 0}/${extension.targetScheduledCount || THREADS_SCHEDULE_LIMIT}` : "Belum connect",
+      detail: extension.lastSyncAt ? `Akaun: ${extension.threadsConnected ? extension.lastAccount || "connected" : "belum login"}` : "Connect akaun Threads melalui extension",
+      tone: extensionOnline ? "good" : "warn",
     },
     {
       label: "Publisher",
@@ -1683,6 +1708,8 @@ function renderPublisher() {
     els.shopeeCookieStatus.className = shopee.hasCookie ? "ready" : "warn";
   }
 
+  renderExtensionBridge();
+
   const entries = state.publisher.lastEntries || [];
   els.publisherLogNote.textContent = entries.length ? `${entries.length} log terakhir` : "Tiada log";
   if (!entries.length) {
@@ -1727,6 +1754,30 @@ function renderPublisher() {
     return row;
   });
   els.publisherLogList.replaceChildren(...rows);
+}
+
+function renderExtensionBridge() {
+  if (!els.extensionStatusBadge) return;
+  const extension = state.extensionBridge.config || {};
+  const nativeCount = Number(extension.lastNativeScheduledCount || 0);
+  const target = Number(extension.targetScheduledCount || THREADS_SCHEDULE_LIMIT);
+  const ready = Boolean(extension.lastSyncAt);
+  const accountReady = Boolean(extension.threadsConnected);
+  const allOnline = ready && accountReady && nativeCount >= target;
+  els.extensionStatusBadge.textContent = allOnline ? "Semua sistem online" : ready ? "Extension sync" : "Belum connect";
+  els.extensionStatusBadge.className = allOnline ? "live" : ready ? "warn" : "dry";
+  els.extensionBridgeStatusText.textContent = ready ? "Online" : "Pairing belum sync";
+  els.extensionAccountText.textContent = accountReady ? extension.lastAccount || "Connected" : "Connect dahulu";
+  els.extensionNativeCountText.textContent = `${nativeCount}/${target}`;
+  els.extensionBridgeUrl.textContent = extension.bridgeUrl || AI_SERVER_URL;
+  els.extensionTokenPreview.textContent = state.extensionBridge.token
+    ? `${state.extensionBridge.token.slice(0, 6)}...${state.extensionBridge.token.slice(-4)}`
+    : extension.tokenPreview || "Klik dapatkan token";
+  els.extensionHelpText.textContent = extension.lastSyncAt
+    ? allOnline
+      ? `Sync terakhir ${extension.lastSyncAt}. ThreadsMe API, extension, dan akaun Threads sudah online.`
+      : `Sync terakhir ${extension.lastSyncAt}. Jika akaun belum dikesan atau count kurang, buka Threads dan tekan Sync dalam extension.`
+    : "Load folder threadsme-extension di Chrome, connect akaun Threads, kemudian paste token pairing dan tekan Sync.";
 }
 
 async function updateGeneratedStatus(versionId, status) {
@@ -2205,6 +2256,40 @@ async function publishSelectedSeries() {
   }
 }
 
+async function loadExtensionPairing() {
+  if (!els.loadExtensionPairingButton) return;
+  els.loadExtensionPairingButton.disabled = true;
+  els.loadExtensionPairingButton.textContent = "Mengambil token...";
+  try {
+    const response = await apiFetch("/api/extension/pairing", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Pairing extension gagal");
+    state.extensionBridge.config = data.bridge || state.extensionBridge.config;
+    state.extensionBridge.token = data.bridge?.token || "";
+    renderExtensionBridge();
+    if (els.extensionHelpText) {
+      els.extensionHelpText.textContent = "Token pairing sudah sedia. Klik Salin token dan paste dalam popup ThreadsMe Extension di Chrome.";
+    }
+  } finally {
+    els.loadExtensionPairingButton.disabled = false;
+    els.loadExtensionPairingButton.textContent = "Dapatkan pairing";
+  }
+}
+
+async function copyExtensionToken() {
+  if (!state.extensionBridge.token) {
+    await loadExtensionPairing();
+  }
+  if (!state.extensionBridge.token) return;
+  await copyText(state.extensionBridge.token);
+  if (els.copyExtensionTokenButton) {
+    els.copyExtensionTokenButton.textContent = "Token disalin";
+    window.setTimeout(() => {
+      els.copyExtensionTokenButton.textContent = "Salin token";
+    }, 1400);
+  }
+}
+
 function bindPublisherControls() {
   if (!els.savePublisherButton) return;
   els.savePublisherButton.addEventListener("click", () => {
@@ -2220,6 +2305,16 @@ function bindPublisherControls() {
   els.publishSelectedButton.addEventListener("click", () => {
     publishSelectedSeries().catch((error) => {
       els.publisherHelpText.textContent = error.message;
+    });
+  });
+  els.loadExtensionPairingButton?.addEventListener("click", () => {
+    loadExtensionPairing().catch((error) => {
+      if (els.extensionHelpText) els.extensionHelpText.textContent = error.message;
+    });
+  });
+  els.copyExtensionTokenButton?.addEventListener("click", () => {
+    copyExtensionToken().catch((error) => {
+      if (els.extensionHelpText) els.extensionHelpText.textContent = error.message;
     });
   });
   els.saveShopeeCookieButton?.addEventListener("click", async () => {

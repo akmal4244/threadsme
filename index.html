@@ -16,7 +16,7 @@
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="./assets/threadsme-favicon.svg?v=4" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=22" />
+    <link rel="stylesheet" href="./styles.css?v=24" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">Langkau ke kandungan utama</a>
@@ -627,6 +627,43 @@
               </div>
             </article>
 
+            <article class="publisher-panel extension-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>ThreadsMe Extension</h2>
+                  <p>Bridge Chrome untuk semak scheduled post sebenar dan isi slot kosong ikut queue ThreadsMe.</p>
+                </div>
+                <span id="extensionStatusBadge">Belum sync</span>
+              </div>
+              <div class="extension-status-grid">
+                <div>
+                  <span>Bridge</span>
+                  <strong id="extensionBridgeStatusText">Belum sync</strong>
+                </div>
+                <div>
+                  <span>Akaun Threads</span>
+                  <strong id="extensionAccountText">Belum connect</strong>
+                </div>
+                <div>
+                  <span>Scheduled sebenar</span>
+                  <strong id="extensionNativeCountText">0/25</strong>
+                </div>
+              </div>
+              <div class="extension-bridge-box">
+                <span>Bridge URL</span>
+                <code id="extensionBridgeUrl">http://127.0.0.1:8788</code>
+              </div>
+              <div class="extension-bridge-box">
+                <span>Token pairing</span>
+                <code id="extensionTokenPreview">Klik dapatkan token</code>
+              </div>
+              <p id="extensionHelpText" class="extension-help">Load folder threadsme-extension di Chrome, connect akaun Threads, kemudian sync. Bila semua hijau, ThreadsMe boleh tally schedule sebenar.</p>
+              <div class="publisher-actions">
+                <button id="loadExtensionPairingButton" type="button">Dapatkan pairing</button>
+                <button id="copyExtensionTokenButton" type="button">Salin token</button>
+              </div>
+            </article>
+
             <article class="publisher-panel">
               <div class="panel-heading">
                 <h2>Tetapan API</h2>
@@ -721,6 +758,6 @@
 
     <script src="./assets/vendor/gsap.min.js?v=1"></script>
     <script src="./assets/vendor/ScrollTrigger.min.js?v=1"></script>
-    <script src="./app.js?v=30"></script>
+    <script src="./app.js?v=31"></script>
   </body>
 </html>

@@ -33,6 +33,16 @@ function resolveRequest(url) {
 
 const server = createServer(async (req, res) => {
   try {
+    if (!["GET", "HEAD"].includes(req.method || "GET")) {
+      res.writeHead(405, {
+        "allow": "GET, HEAD",
+        "content-type": "text/plain; charset=utf-8",
+        "x-content-type-options": "nosniff",
+      });
+      res.end("Method not allowed");
+      return;
+    }
+
     const target = resolveRequest(req.url || "/");
     if (!target) {
       res.writeHead(403);
@@ -42,14 +52,24 @@ const server = createServer(async (req, res) => {
 
     const info = await stat(target);
     const filePath = info.isDirectory() ? path.join(target, "index.html") : target;
+    const relative = path.relative(root, filePath);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
+      res.end("Forbidden");
+      return;
+    }
     const body = await readFile(filePath);
     res.writeHead(200, {
       "content-type": mime.get(path.extname(filePath)) || "application/octet-stream",
       "cache-control": "no-store",
       "x-content-type-options": "nosniff",
       "referrer-policy": "same-origin",
+      "x-frame-options": "DENY",
+      "permissions-policy": "camera=(), microphone=(), geolocation=()",
+      "content-security-policy":
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; connect-src 'self' http://127.0.0.1:8788; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
     });
-    res.end(body);
+    res.end(req.method === "HEAD" ? undefined : body);
   } catch {
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     res.end("Not found");

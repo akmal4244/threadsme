@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "ThreadsMe Extension",
+  "version": "0.1.0",
+  "description": "Bridge Chrome untuk tally scheduled post sebenar di Threads dan isi slot kosong daripada queue ThreadsMe.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "https://www.threads.com/*",
+    "http://127.0.0.1:8788/*",
+    "http://localhost/*"
+  ],
+  "action": {
+    "default_title": "ThreadsMe",
+    "default_popup": "src/popup.html"
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.threads.com/*"],
+      "js": ["src/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

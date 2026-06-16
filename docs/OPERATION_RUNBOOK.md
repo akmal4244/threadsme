@@ -17,6 +17,8 @@ Jalankan semakan asas:
 ```bash
 npm run check
 npm run qa:smoke
+npm run qa:production
+npm run audit:stories
 ```
 
 Semak JSON utama:
@@ -37,13 +39,24 @@ Deploy semula ke XAMPP:
 npm run deploy:xampp
 ```
 
+Backup dan rotate log:
+
+```bash
+npm run backup:runtime
+npm run logs:rotate
+```
+
 ## Semak AI Server
 
 Health endpoint patut pulang `ok:true`. Dalam mode single-user local, `hasKey` dipaparkan terus supaya status DeepSeek jelas.
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8788/api/health -TimeoutSec 10
+Invoke-RestMethod -Uri http://127.0.0.1:8788/api/automation-health -TimeoutSec 10
+Invoke-RestMethod -Uri http://127.0.0.1:8788/api/ops-health -TimeoutSec 10
 ```
+
+`/api/ops-health` ialah endpoint production-friendly untuk semak runtime JSON, backup terakhir, log status, publisher, extension dan auth secara disanitasi. Jika `THREADSME_AUTH_REQUIRED=true`, endpoint ini perlukan sesi admin.
 
 Jika `hasKey:false`, semak salah satu pilihan ini:
 
@@ -83,6 +96,23 @@ THREADSME_ALLOWED_ORIGINS=http://localhost,http://localhost:80,http://127.0.0.1,
 ```
 
 Jika deploy ke hosting/domain, tambah domain production dan jangan guna `*`.
+
+Rujuk `.env.production.example` untuk template environment production. Jangan isi secret sebenar ke dalam repo. Nilai production patut datang daripada secret manager, service manager, cPanel env, atau fail env private di server.
+
+Environment production minimum:
+
+```text
+NODE_ENV=production
+THREADSME_AUTH_REQUIRED=true
+THREADSME_ALLOWED_ORIGINS=https://domain-threadsme-anda
+THREADSME_RUNTIME_DIR=/var/lib/threadsme/runtime
+THREADSME_BACKUP_DIR=/var/backups/threadsme
+THREADSME_LOG_DIR=/var/log/threadsme
+THREADSME_ADMIN_USERNAME=<admin>
+THREADSME_ADMIN_PASSWORD=<password kuat>
+DEEPSEEK_API_KEY=<secret>
+THREADS_ACCESS_TOKEN=<secret jika live publisher>
+```
 
 Jika lupa password file-based semasa local dev, hentikan server dan reset fail private berikut secara manual:
 
@@ -153,6 +183,7 @@ Backup runtime boleh dibuat melalui:
 
 - GUI: `Tindakan Saya` -> `Backup runtime`.
 - API protected: `POST /api/runtime-backup/snapshot`.
+- CLI/scheduler: `npm run backup:runtime`.
 
 Fail backup disimpan di:
 
@@ -161,6 +192,40 @@ work/backups/
 ```
 
 Backup mengandungi jadual, status, story runs, config publisher yang disanitasi, dan indikator sama ada key/token/cookie tersimpan. Backup tidak menyimpan nilai secret sebenar.
+
+Cadangan scheduler Windows local:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command `"cd 'C:\path\to\threadsme'; npm run backup:runtime; npm run logs:rotate`""
+$trigger = New-ScheduledTaskTrigger -Daily -At 11:55pm
+Register-ScheduledTask -TaskName "ThreadsMe Runtime Backup" -Action $action -Trigger $trigger -Description "Backup runtime ThreadsMe harian" -Force
+```
+
+Cadangan cron Linux:
+
+```cron
+55 23 * * * cd /var/www/threadsme && npm run backup:runtime && npm run logs:rotate >> /var/log/threadsme/cron.log 2>&1
+```
+
+## Log Rotation
+
+Runtime log disimpan sebagai JSONL supaya senang audit:
+
+```text
+work/runtime/logs/api-errors.log
+work/runtime/logs/publish-events.log
+work/runtime/logs/extension-events.log
+```
+
+Tetapan:
+
+```text
+THREADSME_LOG_DIR=work/runtime/logs
+THREADSME_LOG_MAX_BYTES=1048576
+THREADSME_LOG_BACKUPS=7
+```
+
+Log disanitasi supaya token, cookie, password, API key dan Bearer token tidak ditulis mentah.
 
 ## Status Queue
 
@@ -198,11 +263,77 @@ Sebelum live:
 
 Token boleh disimpan melalui GUI Publisher atau env `THREADS_ACCESS_TOKEN`.
 
+Live publisher hanya patut dibuka selepas checklist ini selesai:
+
+1. `npm run backup:runtime` berjaya.
+2. `npm run check`, `npm run qa:smoke`, `npm run qa:production`, dan `npm run audit:stories` lulus.
+3. `/api/automation-health` menunjukkan DeepSeek OK, publisher dry-run OK, extension status jelas, dan 0 isu story audit.
+4. Threads User ID dan token betul untuk akaun yang sama.
+5. Akmal sahkan mahu publish live.
+6. Matikan `Mod selamat sahaja` atau `dryRun` hanya untuk sesi go-live yang dipantau.
+7. Pantau `work/runtime/logs/publish-events.log` dan dashboard selepas publish pertama.
+
+Jika ada error semasa live, hidupkan semula `Dry-run` serta-merta dan ikut rollback plan di bawah.
+
+## Reverse Proxy HTTPS
+
+Contoh disediakan:
+
+```text
+deploy/nginx.example.conf
+deploy/Caddyfile.example
+```
+
+Cadangan production/private:
+
+- Static UI pada loopback Node atau Apache/XAMPP.
+- AI/API hanya expose melalui reverse proxy HTTPS.
+- `THREADSME_ALLOWED_ORIGINS` mesti sepadan dengan domain HTTPS.
+- Jangan expose port `8788` terus ke internet.
+- Pastikan `THREADSME_AUTH_REQUIRED=true`.
+
+## CI / Automated Verification
+
+GitHub Actions disediakan di:
+
+```text
+.github/workflows/ci.yml
+```
+
+CI menjalankan:
+
+```bash
+npm run check
+npm run qa:smoke
+npm run qa:production
+npm run audit:stories
+node --check threadsme-extension/src/background.js
+node --check threadsme-extension/src/content.js
+node --check threadsme-extension/src/popup.js
+```
+
+Jangan merge perubahan besar jika CI gagal.
+
+## Rollback Plan
+
+Jika deployment atau live publisher bermasalah:
+
+1. Aktifkan semula `Dry-run` / `Mod selamat sahaja`.
+2. Hentikan AI server atau worker publisher sementara.
+3. Simpan salinan folder runtime bermasalah untuk audit.
+4. Restore backup terakhir daripada `work/backups/runtime-cli-*` atau snapshot `threadsme-backup-*.json`.
+5. Deploy semula versi commit stabil terakhir.
+6. Jalankan `npm run check`, `npm run qa:smoke`, `npm run qa:production`, dan `npm run audit:stories`.
+7. Buka dashboard, semak `/api/ops-health`, `/api/automation-health`, dan extension status.
+8. Hanya aktifkan semula live selepas post pertama diuji dalam dry-run dan Akmal sahkan.
+
 ## Checklist Sebelum Commit
 
 ```bash
 npm run check
 npm run qa:smoke
+npm run qa:production
+npm run audit:stories
 git diff --check
 ```
 
