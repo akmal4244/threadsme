@@ -26,6 +26,9 @@ jobs:
       - name: Production safety QA
         run: npm run qa:production
 
+      - name: Static server hardening QA
+        run: node scripts/qa-static-server.mjs
+
       - name: Story audit
         run: npm run audit:stories
 
