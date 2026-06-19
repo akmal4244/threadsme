@@ -6,6 +6,7 @@ const DEFAULT_CONFIG = {
 };
 
 const AUTOPILOT_ALARM_NAME = "threadsme-autopilot";
+const OFFICIAL_BRIDGE_HOST = "threadsme.akmalmarvis.com";
 let autopilotBusy = false;
 let scheduleBusy = false;
 
@@ -20,9 +21,14 @@ async function getConfig() {
 
 function normalizeBridgeUrl(value) {
   const url = new URL(String(value || DEFAULT_CONFIG.bridgeUrl).trim());
-  const allowedHosts = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
-  if (!["http:", "https:"].includes(url.protocol) || !allowedHosts.has(url.hostname)) {
-    throw new Error("Bridge URL mesti localhost atau 127.0.0.1 untuk elak token pairing bocor.");
+  const localHosts = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+  const isLocal = localHosts.has(url.hostname) && ["http:", "https:"].includes(url.protocol);
+  const isOfficialProduction =
+    url.protocol === "https:" &&
+    url.hostname === OFFICIAL_BRIDGE_HOST &&
+    (!url.port || url.port === "443");
+  if (!isLocal && !isOfficialProduction) {
+    throw new Error(`Bridge URL hanya dibenarkan untuk localhost atau https://${OFFICIAL_BRIDGE_HOST}.`);
   }
   return url.origin.replace(/\/+$/g, "");
 }
@@ -176,7 +182,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
     if (type === "THREADSME_SCAN_THREADS") return sendToThreadsTab("THREADSME_SCAN_THREADS", payload);
     if (type === "THREADSME_SYNC_THREADS") {
-      return syncThreadsToBridge(payload);
+      return syncThreadsToBridge();
     }
     if (type === "THREADSME_SCHEDULE_NEXT") {
       return scheduleNextApproved();

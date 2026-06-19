@@ -4,7 +4,7 @@
   const params = new URLSearchParams(window.location.search);
   const override = params.get("api") || window.localStorage.getItem("THREADSME_API_MODE") || "";
   const host = window.location.hostname;
-  const useProductionData = host === "threadsme.akmalmarvis.com" || host === "localhost";
+  const useProductionData = host === "threadsme.akmalmarvis.com";
 
   window.THREADSME_CONFIG = {
     apiUrl: override === "local"
@@ -14,7 +14,7 @@
         : useProductionData
           ? productionApi
           : localApi,
-    uiVersion: "0.10.2",
+    uiVersion: "0.10.3",
   };
 
   const uiStyles = document.createElement("style");
@@ -90,8 +90,8 @@
           imageUrl: q("#productImageUrl")?.value.trim() || "",
           sourceText: q("#storyInput")?.value.trim() || "",
           imageNotes: q("#imageNotes")?.value.trim() || "",
-          productTitle: title?.value.trim() || "",
-          productCategory: category?.value.trim() || "",
+          productTitle: "",
+          productCategory: "",
           skipCache: true,
         }),
       });
@@ -103,7 +103,7 @@
       title?.dispatchEvent(new Event("input", { bubbles: true }));
       category?.dispatchEvent(new Event("input", { bubbles: true }));
       try {
-        if (typeof state !== "undefined" && data.productTitle) {
+        if (!keepManual && typeof state !== "undefined" && data.productTitle) {
           state.productIntel = {
             productTitle: data.productTitle,
             productCategory: data.productCategory || "",
@@ -252,6 +252,13 @@
     };
     toggle.addEventListener("click", () => setSimple(!document.body.classList.contains("tm-simple-mode")));
     [q("#productAffiliateLink"), q("#productTitle"), q("#storyOutput")].filter(Boolean).forEach((node) => node.addEventListener("input", update));
+    const generatedList = q("#generatedStatusList");
+    if (generatedList) new MutationObserver(update).observe(generatedList, { childList: true, subtree: true });
+    const generateButton = q("#generateStoryButton");
+    if (generateButton) {
+      generateButton.addEventListener("click", () => [300, 1200, 4000].forEach((delay) => setTimeout(update, delay)));
+      new MutationObserver(update).observe(generateButton, { attributes: true, attributeFilter: ["aria-busy", "disabled"] });
+    }
     setSimple(storageGet("threadsme.ui.simpleMode") !== "false");
     update();
   }

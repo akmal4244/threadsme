@@ -204,6 +204,7 @@
       boxes.forEach(clearTextboxValue);
       throw new Error("Composer Threads nampak tidak selari selepas isi. Extension kosongkan draf untuk elak duplicate/over-limit.");
     }
+    return expected;
   }
 
   function validatePreview(post) {
@@ -311,7 +312,7 @@
     const post = payload.post || {};
     const delayMs = Math.max(700, Math.min(Number(payload.delayMs || 1800), 8000));
     try {
-      await fillThread(post, delayMs);
+      const parts = await fillThread(post, delayMs);
       validatePreview(post);
       await openScheduler(post.slot, delayMs);
       validatePreview(post);

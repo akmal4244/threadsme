@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | ThreadsMe |
 | Repo slug | threadsme |
-| Versi | v0.10.1 |
+| Versi | v0.10.3 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -79,7 +79,7 @@ Flow terbaik untuk akaun Threads ialah:
 4. Extract zip itu ke folder biasa.
 5. Di Chrome, buka `chrome://extensions`, aktifkan Developer Mode, dan `Load unpacked` folder hasil extract.
 6. Klik `Dapatkan pairing`, kemudian salin token pairing.
-7. Paste Bridge URL dan token dalam popup extension.
+7. Paste Bridge URL dan token dalam popup extension. Bridge rasmi boleh guna `https://threadsme.akmalmarvis.com`; localhost kekal disokong untuk operasi local.
 8. Klik `Connect akaun Threads`, login jika perlu, kemudian klik `Scan Threads` dan `Sync ke ThreadsMe`.
 
 Status dianggap lengkap bila dashboard memaparkan `Semua sistem online`:
@@ -413,7 +413,7 @@ ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jad
 - Publisher akan tahan siri secara automatik sebagai `Auto Guard` jika DeepSeek mengesan story lari produk, claim pelik, BM tidak natural, CTA/link bermasalah, atau score bawah minimum.
 - Automation Health dan Publisher Status kini memaparkan ringkasan Preflight supaya status sebelum posting boleh dipantau.
 
-### v0.10.1
+### v0.10.3
 
 - Auth API kini admin-protected secara default (`THREADSME_AUTH_REQUIRED=true`), dan mod tanpa login hanya aktif jika env diset `false` secara sengaja.
 - Native schedule proof dibersihkan ikut siri `Pending` sebenar supaya nombor scheduled lama yang sudah lepas tidak terus dikira sebagai native scheduled aktif.

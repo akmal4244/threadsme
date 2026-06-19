@@ -77,7 +77,7 @@ function validateNumberList(value, label, maxNumber) {
   for (const item of value) {
     const number = Number(item);
     if (!Number.isInteger(number) || number < 1) throw new Error(`${label} mengandungi nombor tidak sah: ${item}`);
-    if (maxNumber > 0 && number > maxNumber) throw new Error(`${label} merujuk Siri ${number}, tetapi schedule hanya ada ${maxNumber} siri.`);
+    if (number > maxNumber) throw new Error(`${label} merujuk Siri ${number}, tetapi schedule hanya ada ${maxNumber} siri.`);
     if (seen.has(number)) throw new Error(`${label} mengandungi nombor berulang: ${number}`);
     seen.add(number);
   }
@@ -136,9 +136,18 @@ function validateRuntimeFiles(files) {
   });
 
   assertObject(status, "status.json");
-  ["scheduled", "posted", "failed", "prepared", "remaining"].forEach((key) => {
+  const statusKeys = ["scheduled", "posted", "failed", "prepared", "remaining"];
+  statusKeys.forEach((key) => {
     validateNumberList(status[key] || [], `status.json.${key}`, schedule.posts.length);
   });
+  const ownership = new Map();
+  for (const key of statusKeys) {
+    for (const number of status[key] || []) {
+      const previous = ownership.get(number);
+      if (previous) throw new Error(`Siri ${number} muncul serentak dalam status ${previous} dan ${key}.`);
+      ownership.set(number, key);
+    }
+  }
 
   assertObject(storyRuns, "story-runs.json");
   assertArray(storyRuns.runs, "story-runs.json.runs");

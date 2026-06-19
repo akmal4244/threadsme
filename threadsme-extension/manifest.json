@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "ThreadsMe Extension",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Bridge Chrome untuk tally scheduled post sebenar di Threads dan isi slot kosong daripada queue ThreadsMe.",
   "permissions": ["activeTab", "alarms", "scripting", "storage"],
   "host_permissions": [
     "https://www.threads.com/*",
+    "https://threadsme.akmalmarvis.com/*",
     "http://127.0.0.1:8788/*",
     "http://localhost/*"
   ],

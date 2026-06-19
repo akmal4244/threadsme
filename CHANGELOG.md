@@ -1,5 +1,25 @@
 # Changelog ThreadsMe
 
+## 0.10.3 - 2026-06-19
+
+### Kesinambungan flow
+
+- Betulkan extension scheduler yang sebelum ini gagal pada langkah confirmation kerana payload composer tidak diteruskan.
+- Benarkan Bridge URL production rasmi melalui HTTPS sambil mengekalkan localhost untuk operasi local.
+- Gunakan `THREADSME_PUBLIC_URL` dalam pairing extension dan aktifkan cookie `Secure` untuk deployment HTTPS.
+- Pastikan siri hanya bertukar kepada `Lulus` selepas ada proof khusus bagi siri tersebut; sync count global sahaja tidak mencukupi.
+- Selaraskan metadata Product Audit antara schedule, story run dan version serta bersihkan sebab Quality Gate lama.
+- Pastikan refresh Product Intel tanpa cache benar-benar menyemak semula link tanpa tajuk manual lama mempengaruhi keputusan.
+- Betulkan default localhost supaya menggunakan AI server local, bukan API production.
+
+### Keselamatan dan operasi
+
+- Kunci static route AI server kepada fail frontend public sahaja.
+- Tambah validasi restore bagi status bertindih dan nombor status di luar julat schedule.
+- Selaraskan contoh env production untuk public URL, HTTPS, CORS, preflight dan host API.
+- Pisahkan launcher AI server daripada core supaya guard kesinambungan gagal secara jelas apabila struktur berubah.
+- Tambah QA end-to-end untuk auth, generation, queue 25, Auto Audit, Product Audit, extension proof, publisher dry-run, backup dan restart persistence.
+
 ## 0.10.2 - 2026-06-18
 
 ### UI dan pengalaman pengguna

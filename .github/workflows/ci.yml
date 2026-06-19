@@ -7,7 +7,7 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,3 +44,18 @@ jobs:
           node --check threadsme-extension/src/content.js
           node --check threadsme-extension/src/popup.js
           node -e "JSON.parse(require('fs').readFileSync('threadsme-extension/manifest.json','utf8'))"
+
+  flow-continuity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: End-to-end flow continuity QA
+        run: npm run qa:flow
