@@ -42,12 +42,6 @@ replaceText(
 );
 
 replaceText(
-  "public fallback JSON",
-  '  "config.js",\n  "threadsme-extension.zip",',
-  '  "config.js",\n  "threads_flexi_marble_schedule.json",\n  "status.json",\n  "story-runs.json",\n  "threadsme-extension.zip",',
-);
-
-replaceText(
   "static MIME continuity",
   '  [".svg", "image/svg+xml; charset=utf-8"],\n  [".zip", "application/zip"],',
   '  [".svg", "image/svg+xml; charset=utf-8"],\n  [".ico", "image/x-icon"],\n  [".webmanifest", "application/manifest+json; charset=utf-8"],\n  [".txt", "text/plain; charset=utf-8"],\n  [".zip", "application/zip"],',
