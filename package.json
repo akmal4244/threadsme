@@ -1,6 +1,6 @@
 {
   "name": "threadsme",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "private": false,
   "type": "module",
   "description": "ThreadsMe untuk jana story, jadual Threads, dan automasi publisher.",
@@ -11,14 +11,18 @@
     "ai:hidden": "powershell -ExecutionPolicy Bypass -File scripts/start-ai-hidden.ps1",
     "deploy:xampp": "powershell -ExecutionPolicy Bypass -File scripts/deploy-xampp.ps1",
     "backup:runtime": "node scripts/backup-runtime.mjs",
+    "restore:runtime": "node scripts/restore-runtime.mjs",
     "logs:rotate": "node scripts/rotate-logs.mjs",
     "audit:stories": "node scripts/audit-repair-stories.mjs",
     "audit:stories:fix": "node scripts/audit-repair-stories.mjs --apply",
     "qa:alignment": "node scripts/qa-alignment.mjs",
     "qa:alignment:fix": "node scripts/qa-alignment.mjs --fix",
-    "check": "node --check app.js && node --check ai-server.mjs && node --check server.mjs && node --check scripts/qa-smoke.mjs && node --check scripts/qa-production-safety.mjs && node --check scripts/audit-repair-stories.mjs && node --check scripts/qa-alignment.mjs && node --check scripts/backup-runtime.mjs && node --check scripts/rotate-logs.mjs",
+    "check": "node --check app.js && node --check config.js && node --check ai-server.mjs && node --check server.mjs && node --check scripts/qa-smoke.mjs && node --check scripts/qa-production-safety.mjs && node --check scripts/qa-static-server.mjs && node --check scripts/qa-ui-enhancements.mjs && node --check scripts/qa-runtime-restore.mjs && node --check scripts/restore-runtime.mjs && node --check scripts/audit-repair-stories.mjs && node --check scripts/qa-alignment.mjs && node --check scripts/backup-runtime.mjs && node --check scripts/rotate-logs.mjs",
     "qa:smoke": "node scripts/qa-smoke.mjs",
-    "qa:production": "node scripts/qa-production-safety.mjs"
+    "qa:production": "node scripts/qa-production-safety.mjs",
+    "qa:static": "node scripts/qa-static-server.mjs",
+    "qa:ui": "node scripts/qa-ui-enhancements.mjs",
+    "qa:restore": "node scripts/qa-runtime-restore.mjs"
   },
   "keywords": [
     "threads",
