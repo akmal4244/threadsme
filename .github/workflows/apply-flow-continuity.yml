@@ -1,0 +1,50 @@
+name: Apply ThreadsMe Flow Continuity Patches
+
+on:
+  push:
+    branches:
+      - codex/flow-continuity-audit-20260619
+    paths:
+      - scripts/apply-flow-continuity-fixes.mjs
+      - .github/workflows/apply-flow-continuity.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout audit branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/flow-continuity-audit-20260619
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Apply source patches
+        run: node scripts/apply-flow-continuity-fixes.mjs
+
+      - name: Verify patched syntax
+        run: |
+          node --check ai-server.mjs
+          node --check config.js
+          node --check threadsme-extension/src/content.js
+          node --check scripts/restore-runtime.mjs
+
+      - name: Commit generated fixes
+        run: |
+          if git diff --quiet; then
+            echo "No generated changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai-server.mjs config.js README.md scripts/restore-runtime.mjs threadsme-extension/src/content.js
+          git commit -m "fix: connect ThreadsMe flows end to end"
+          git push origin HEAD:codex/flow-continuity-audit-20260619
