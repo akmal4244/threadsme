@@ -12,7 +12,6 @@ const generatedRoot = path.join(runtimeRoot, "generated");
 let source = await readFile(sourceFile, "utf8");
 
 function replaceText(label, before, after) {
-  if (source.includes(after)) return;
   const count = source.split(before).length - 1;
   if (count !== 1) {
     throw new Error(`ThreadsMe continuity patch ${label} menjangka 1 padanan, tetapi jumpa ${count}.`);
