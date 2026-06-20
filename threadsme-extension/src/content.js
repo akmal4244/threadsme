@@ -41,15 +41,41 @@
     };
   }
 
+  function regexList(patterns) {
+    return patterns.map((pattern) => (pattern instanceof RegExp ? pattern : new RegExp(pattern, "i")));
+  }
+
+  function clickTargetFor(element) {
+    return element?.closest?.('button, [role="button"], [role="menuitem"], [role="option"], a, [tabindex]') || element;
+  }
+
   function clickByText(patterns, { required = true } = {}) {
-    const regexes = patterns.map((pattern) => (pattern instanceof RegExp ? pattern : new RegExp(pattern, "i")));
-    const candidates = Array.from(document.querySelectorAll('button, [role="button"], a, div[aria-label], span[aria-label]'))
+    const regexes = regexList(patterns);
+    const candidates = Array.from(document.querySelectorAll('button, [role="button"], [role="menuitem"], [role="option"], a, [aria-label]'))
       .filter(visible)
       .filter((element) => {
         const label = `${textOf(element)} ${element.getAttribute("aria-label") || ""}`.trim();
         return regexes.some((regex) => regex.test(label));
       });
-    const button = candidates[0]?.closest?.('button, [role="button"], a') || candidates[0];
+    const button = clickTargetFor(candidates[0]);
+    if (!button) {
+      if (required) throw new Error(`Butang tidak ditemui: ${patterns.join(", ")}`);
+      return false;
+    }
+    button.click();
+    return true;
+  }
+
+  function clickLooseByText(patterns, { required = true, maxLabelLength = 96 } = {}) {
+    const regexes = regexList(patterns);
+    const candidates = Array.from(document.querySelectorAll('button, [role="button"], [role="menuitem"], [role="option"], a, div, span'))
+      .filter(visible)
+      .filter((element) => {
+        const label = `${textOf(element)} ${element.getAttribute("aria-label") || ""}`.replace(/\s+/g, " ").trim();
+        if (!label || label.length > maxLabelLength) return false;
+        return regexes.some((regex) => regex.test(label));
+      });
+    const button = clickTargetFor(candidates[0]);
     if (!button) {
       if (required) throw new Error(`Butang tidak ditemui: ${patterns.join(", ")}`);
       return false;
@@ -266,12 +292,53 @@
     }
   }
 
+  async function openPostOptionsMenu(delayMs) {
+    const optionPatterns = [
+      /^post options$/i,
+      /post options/i,
+      /posting options/i,
+      /pilihan post/i,
+      /pilihan siaran/i,
+      /opsyen post/i,
+      /^options$/i,
+      /^more$/i,
+      /^lagi$/i,
+      /^\.\.\.$/,
+    ];
+    const opened = clickByText(optionPatterns, { required: false })
+      || clickLooseByText(optionPatterns, { required: false, maxLabelLength: 90 });
+    if (!opened) {
+      throw new Error("Butang Post Options tidak ditemui. Pastikan composer Threads terbuka dan tiada popup lain menutup bahagian bawah composer.");
+    }
+    await sleep(Math.max(800, Math.min(delayMs, 1600)));
+  }
+
+  async function clickScheduleOption(delayMs) {
+    const schedulePatterns = [
+      /^schedule$/i,
+      /schedule post/i,
+      /schedule thread/i,
+      /schedule/i,
+      /^jadual$/i,
+      /jadualkan/i,
+      /dijadual/i,
+    ];
+    if (clickByText(schedulePatterns, { required: false })) return true;
+    if (clickLooseByText(schedulePatterns, { required: false, maxLabelLength: 110 })) return true;
+
+    await openPostOptionsMenu(delayMs);
+    if (clickByText(schedulePatterns, { required: false })) return true;
+    if (clickLooseByText(schedulePatterns, { required: false, maxLabelLength: 110 })) return true;
+
+    await sleep(650);
+    if (clickByText(schedulePatterns, { required: false })) return true;
+    return clickLooseByText(schedulePatterns, { required: false, maxLabelLength: 110 });
+  }
+
   async function openScheduler(slot, delayMs) {
-    const clickedSchedule = clickByText([/schedule/i, /jadual/i], { required: false });
+    const clickedSchedule = await clickScheduleOption(delayMs);
     if (!clickedSchedule) {
-      clickByText([/more/i, /options/i, /lagi/i, /^•••$/, /^…$/], { required: true });
-      await sleep(700);
-      clickByText([/schedule/i, /jadual/i], { required: true });
+      throw new Error("Butang Schedule tidak ditemui selepas buka Post Options. UI Threads mungkin berubah; buka Post Options manual sekali dan cuba semula.");
     }
     await sleep(delayMs);
 
