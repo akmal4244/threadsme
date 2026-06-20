@@ -370,11 +370,12 @@ function parseSlot(slot) {
   const [datePart, timePart] = slot.split(" ");
   const [year, month, day] = datePart.split("-").map(Number);
   const [hour, minute] = timePart.split(":").map(Number);
-  return new Date(year, month - 1, day, hour, minute);
+  return new Date(Date.UTC(year, month - 1, day, hour - 8, minute));
 }
 
 function formatSlot(slot) {
   return parseSlot(slot).toLocaleString("ms-MY", {
+    timeZone: "Asia/Kuala_Lumpur",
     weekday: "short",
     day: "2-digit",
     month: "short",

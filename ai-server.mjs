@@ -168,6 +168,26 @@ function malaysiaNow() {
     .replace(",", "");
 }
 
+function malaysiaDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kuala_Lumpur",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  return parts.reduce((result, part) => {
+    if (part.type !== "literal") result[part.type] = Number(part.value);
+    return result;
+  }, {});
+}
+
+function malaysiaSlotInstant(year, month, day, hour = 0, minute = 0) {
+  return new Date(Date.UTC(year, month - 1, day, hour - 8, minute));
+}
+
 function defaultThreadsConfig() {
   return {
     enabled: false,
@@ -1197,7 +1217,8 @@ function parseScheduleSlot(slot) {
   if (!datePart || !timePart) return new Date(NaN);
   const [year, month, day] = datePart.split("-").map(Number);
   const [hour, minute] = timePart.split(":").map(Number);
-  return new Date(year, month - 1, day, hour, minute);
+  if (![year, month, day, hour, minute].every(Number.isFinite)) return new Date(NaN);
+  return malaysiaSlotInstant(year, month, day, hour, minute);
 }
 
 function arraysMatch(a, b) {
@@ -1212,11 +1233,12 @@ function formatNumberRange(numbers) {
 }
 
 function formatScheduleSlot(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
+  const parts = malaysiaDateParts(date);
+  const year = parts.year;
+  const month = String(parts.month).padStart(2, "0");
+  const day = String(parts.day).padStart(2, "0");
+  const hour = String(parts.hour).padStart(2, "0");
+  const minute = String(parts.minute).padStart(2, "0");
   return `${year}-${month}-${day} ${hour}:${minute}`;
 }
 
@@ -1237,14 +1259,15 @@ function buildScheduleSlots(existingPosts, count, postsPerDay) {
   const times = getPostingTimes(postsPerDay);
   const latestExisting = getLatestExistingSlot(existingPosts);
   const startAfter = Math.max(Date.now() + 30 * 60 * 1000, latestExisting + 60 * 1000);
-  const cursor = new Date(startAfter);
-  const day = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+  const cursorParts = malaysiaDateParts(new Date(startAfter));
+  let day = malaysiaSlotInstant(cursorParts.year, cursorParts.month, cursorParts.day);
   const slots = [];
 
   while (slots.length < count) {
+    const dayParts = malaysiaDateParts(day);
     for (const time of times) {
       const [hour, minute] = time.split(":").map(Number);
-      const slotDate = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute);
+      const slotDate = malaysiaSlotInstant(dayParts.year, dayParts.month, dayParts.day, hour, minute);
       const slot = formatScheduleSlot(slotDate);
       if (slotDate.getTime() > startAfter && !existingSlots.has(slot)) {
         slots.push(slot);
@@ -1252,7 +1275,7 @@ function buildScheduleSlots(existingPosts, count, postsPerDay) {
         if (slots.length === count) break;
       }
     }
-    day.setDate(day.getDate() + 1);
+    day = new Date(day.getTime() + 24 * 60 * 60 * 1000);
   }
 
   return slots;
@@ -3678,6 +3701,15 @@ async function updateStoryRunStatus(versionId, status) {
 
     if (status === "passed") {
       updatedStatus.posted = addNumber(updatedStatus.posted, scheduleNumber);
+      updatedStatus.publishResults = {
+        ...(updatedStatus.publishResults && typeof updatedStatus.publishResults === "object" ? updatedStatus.publishResults : {}),
+        [scheduleNumber]: {
+          status: "manual_published",
+          source: "ThreadsMe manual status",
+          publishedAt: `${malaysiaNow()} GMT+8`,
+          note: "Ditanda Lulus melalui dashboard ThreadsMe.",
+        },
+      };
       updatedStatus.systemStatus = "Status manual - Lulus";
       updatedStatus.systemNote = `Siri ${scheduleNumber} ditanda Lulus daripada Status story dijana.`;
     } else if (status === "failed") {

@@ -310,6 +310,7 @@
     window.__THREADSME_SCHEDULE_BUSY__ = true;
     const post = payload.post || {};
     const delayMs = Math.max(700, Math.min(Number(payload.delayMs || 1800), 8000));
+    const parts = [post.main, post.reply1, post.reply2].map((part) => String(part || "").trim()).filter(Boolean);
     try {
       await fillThread(post, delayMs);
       validatePreview(post);
