@@ -195,6 +195,36 @@
             </div>
           </section>
 
+          <section class="automation-control-panel reveal" aria-label="Kawalan automation autopilot">
+            <div class="automation-control-main">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Autopilot Control</p>
+                  <h2>Kawalan Automation</h2>
+                  <p id="automationControlDetail">ThreadsMe memantau flow autopilot setiap 60 saat.</p>
+                </div>
+                <span id="automationControlBadge" class="badge ready">Autopilot ON</span>
+              </div>
+              <div class="automation-control-status">
+                <strong id="automationControlStatus">Automation sedang berjalan</strong>
+                <span id="automationControlMeta">Menunggu sync automation</span>
+              </div>
+              <div class="automation-control-actions">
+                <button id="startAutomationButton" type="button">Mula automation</button>
+                <button id="stopAutomationButton" type="button">Henti automation</button>
+              </div>
+            </div>
+            <aside class="automation-log-panel" aria-label="Log automation terkini">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <h2>Log Automatik</h2>
+                  <p>Rekod ringkas flow autopilot, queue, publisher dan slot Threads.</p>
+                </div>
+              </div>
+              <div id="automationControlLogList" class="automation-log-list"></div>
+            </aside>
+          </section>
+
           <section class="automation-board reveal" aria-label="Status automasi queue">
             <article class="automation-focus">
               <div>
@@ -628,6 +658,24 @@
               </div>
             </article>
 
+            <article class="publisher-panel publisher-automation-control">
+              <div class="panel-heading">
+                <div>
+                  <h2>Autopilot ThreadsMe</h2>
+                  <p>Master switch untuk Product Intel, DeepSeek, Quality Gate, queue, extension sync dan publisher.</p>
+                </div>
+                <span id="publisherAutomationBadge" class="badge ready">Autopilot ON</span>
+              </div>
+              <div class="automation-control-status">
+                <strong id="publisherAutomationStatus">Automation sedang berjalan</strong>
+                <span id="publisherAutomationMeta">Menunggu sync automation</span>
+              </div>
+              <div class="automation-control-actions">
+                <button id="publisherStartAutomationButton" type="button">Mula automation</button>
+                <button id="publisherStopAutomationButton" type="button">Henti automation</button>
+              </div>
+            </article>
+
             <article class="publisher-panel extension-panel">
               <div class="panel-heading">
                 <div>
@@ -761,7 +809,7 @@
 
     <script src="./assets/vendor/gsap.min.js?v=1"></script>
     <script src="./assets/vendor/ScrollTrigger.min.js?v=1"></script>
-  <script src="./config.js?v=3"></script>
+  <script src="./config.js?v=4"></script>
   <script src="./app.js?v=38"></script>
   </body>
 </html>

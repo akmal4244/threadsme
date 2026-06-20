@@ -18,6 +18,8 @@ const state = {
   automationSummary: null,
   automationOnline: false,
   automationHealth: null,
+  automationControl: { enabled: true, status: "running", label: "Autopilot aktif", detail: "", logs: [] },
+  automationLogs: [],
   autoAudit: { summary: null, actions: [] },
   productAudit: { summary: null, items: [] },
   productIntel: null,
@@ -252,6 +254,18 @@ const els = {
   dashboardPublisherNote: document.querySelector("#dashboardPublisherNote"),
   automationHealthGrid: document.querySelector("#automationHealthGrid"),
   healthLastSync: document.querySelector("#healthLastSync"),
+  automationControlBadge: document.querySelector("#automationControlBadge"),
+  automationControlStatus: document.querySelector("#automationControlStatus"),
+  automationControlDetail: document.querySelector("#automationControlDetail"),
+  automationControlMeta: document.querySelector("#automationControlMeta"),
+  automationControlLogList: document.querySelector("#automationControlLogList"),
+  startAutomationButton: document.querySelector("#startAutomationButton"),
+  stopAutomationButton: document.querySelector("#stopAutomationButton"),
+  publisherAutomationBadge: document.querySelector("#publisherAutomationBadge"),
+  publisherAutomationStatus: document.querySelector("#publisherAutomationStatus"),
+  publisherAutomationMeta: document.querySelector("#publisherAutomationMeta"),
+  publisherStartAutomationButton: document.querySelector("#publisherStartAutomationButton"),
+  publisherStopAutomationButton: document.querySelector("#publisherStopAutomationButton"),
   actionCenterBadge: document.querySelector("#actionCenterBadge"),
   actionPageBadge: document.querySelector("#actionPageBadge"),
   actionPageNote: document.querySelector("#actionPageNote"),
@@ -440,6 +454,20 @@ function applyStatusData(statusData = {}) {
   state.systemNote = statusData.systemNote || state.systemNote;
   if (statusData.publisher) {
     state.publisher.config = statusData.publisher;
+  }
+  if (statusData.automationControl) {
+    state.automationControl = {
+      ...state.automationControl,
+      ...statusData.automationControl,
+      enabled: statusData.automationControl.enabled !== false && statusData.automationMode !== false,
+    };
+  } else if (typeof statusData.automationMode === "boolean") {
+    state.automationControl = {
+      ...state.automationControl,
+      enabled: statusData.automationMode,
+      status: statusData.automationMode ? "running" : "stopped",
+      label: statusData.automationMode ? "Autopilot aktif" : "Autopilot dihentikan",
+    };
   }
 }
 
@@ -713,6 +741,10 @@ async function syncAutomationStatus() {
       };
     }
     state.automationSummary = data.summary || null;
+    if (data.control) {
+      state.automationControl = { ...state.automationControl, ...data.control };
+      state.automationLogs = Array.isArray(data.control.logs) ? data.control.logs : state.automationLogs;
+    }
     state.automationOnline = true;
     return true;
   } catch {
@@ -790,6 +822,14 @@ async function loadAutomationHealth() {
     if (!response.ok || !data.ok) throw new Error(data.error || "Automation health gagal");
     state.automationHealth = data;
     if (data.extension) state.extensionBridge.config = data.extension;
+    if (data.automationControl) {
+      state.automationControl = { ...state.automationControl, ...data.automationControl };
+    }
+    state.automationLogs = Array.isArray(data.automationLogs)
+      ? data.automationLogs
+      : Array.isArray(data.automationControl?.logs)
+        ? data.automationControl.logs
+        : state.automationLogs;
   } catch (error) {
     state.automationHealth = { ok: false, error: error.message };
   }
@@ -1310,6 +1350,84 @@ function renderUnblockAdvice() {
   els.unblockSummary.textContent = "ThreadsMe tidak jumpa slot scheduled masa depan untuk dikitar secara automatik. Semak status queue atau tambah jadual baharu.";
 }
 
+function renderAutomationControl() {
+  if (!els.automationControlStatus) return;
+  const control = state.automationControl || {};
+  const enabled = control.enabled !== false && control.status !== "stopped";
+  const health = state.automationHealth || {};
+  const queue = health.queue || {};
+  const extension = health.extension || state.extensionBridge.config || {};
+  const logs = Array.isArray(state.automationLogs) ? state.automationLogs : [];
+  const pending = queue.pending ?? state.scheduled.length;
+  const blocked = queue.blocked ?? state.remaining.length + state.prepared.length;
+  const nativeCount = extension.lastNativeScheduledCount ?? state.scheduled.length;
+  const detailText = control.detail || (enabled
+    ? "ThreadsMe memantau flow autopilot setiap 60 saat."
+    : "Tekan Mula automation untuk sambung semula flow autopilot.");
+  const syncText = control.lastRunAt || health.queue?.lastAutomationAt || "Belum ada sync";
+  const metaText = `Pending ${pending}/${THREADS_SCHEDULE_LIMIT} | Native ${nativeCount}/${THREADS_SCHEDULE_LIMIT} | Blocked ${blocked} | Sync ${syncText}`;
+  const statusText = enabled ? "Automation sedang berjalan" : "Automation dihentikan";
+  const badgeText = enabled ? "Autopilot ON" : "Autopilot OFF";
+  const badgeClass = enabled ? "badge ready" : "badge warn";
+
+  if (els.automationControlBadge) {
+    els.automationControlBadge.textContent = badgeText;
+    els.automationControlBadge.className = badgeClass;
+  }
+  els.automationControlStatus.textContent = statusText;
+  els.automationControlDetail.textContent = detailText;
+  if (els.automationControlMeta) {
+    els.automationControlMeta.textContent = metaText;
+  }
+  if (els.publisherAutomationBadge) {
+    els.publisherAutomationBadge.textContent = badgeText;
+    els.publisherAutomationBadge.className = badgeClass;
+  }
+  if (els.publisherAutomationStatus) {
+    els.publisherAutomationStatus.textContent = statusText;
+  }
+  if (els.publisherAutomationMeta) {
+    els.publisherAutomationMeta.textContent = metaText;
+  }
+
+  [els.startAutomationButton, els.publisherStartAutomationButton].filter(Boolean).forEach((button) => {
+    button.disabled = enabled;
+    button.setAttribute("aria-pressed", enabled ? "true" : "false");
+  });
+  [els.stopAutomationButton, els.publisherStopAutomationButton].filter(Boolean).forEach((button) => {
+    button.disabled = !enabled;
+    button.setAttribute("aria-pressed", enabled ? "false" : "true");
+  });
+
+  if (!els.automationControlLogList) return;
+  const visibleLogs = logs.slice(0, 8);
+  if (!visibleLogs.length) {
+    els.automationControlLogList.replaceChildren(
+      makeEmptyState("Belum ada log automation", "Tekan Mula automation atau tunggu sync server untuk rekod log baharu."),
+    );
+    return;
+  }
+  els.automationControlLogList.replaceChildren(
+    ...visibleLogs.map((entry) => {
+      const item = document.createElement("article");
+      item.className = "automation-log-item";
+      const title = entry.message || String(entry.event || "Automation").replace(/_/g, " ");
+      const detailParts = [
+        entry.systemStatus,
+        Number.isFinite(Number(entry.pending)) ? `Pending ${entry.pending}` : "",
+        Number.isFinite(Number(entry.blocked)) ? `Blocked ${entry.blocked}` : "",
+        entry.publisher ? `Publisher ${entry.publisher}` : "",
+      ].filter(Boolean);
+      item.append(
+        makeTextElement("strong", "", title),
+        makeTextElement("span", "", entry.malaysiaTime || entry.ts || ""),
+        makeTextElement("small", "", detailParts.join(" | ") || "Log automation direkod."),
+      );
+      return item;
+    }),
+  );
+}
+
 function renderAutomationHealth() {
   if (!els.automationHealthGrid) return;
   const health = state.automationHealth || {};
@@ -1319,11 +1437,19 @@ function renderAutomationHealth() {
   const audit = health.audit || state.productAudit.summary || {};
   const autoAudit = health.autoAudit || state.autoAudit.summary || {};
   const extension = health.extension || state.extensionBridge.config || {};
+  const control = state.automationControl || health.automationControl || {};
+  const automationEnabled = control.enabled !== false && control.status !== "stopped";
   const extensionOnline =
     Boolean(extension.lastSyncAt) &&
     Boolean(extension.threadsConnected) &&
     (extension.lastNativeScheduledCount || 0) >= Math.min(extension.targetScheduledCount || THREADS_SCHEDULE_LIMIT, THREADS_SCHEDULE_LIMIT);
   const cards = [
+    {
+      label: "Autopilot",
+      value: automationEnabled ? "Berjalan" : "Dihenti",
+      detail: control.lastChangedAt ? `Status berubah ${control.lastChangedAt}` : "Kawalan mula/henti tersedia",
+      tone: automationEnabled ? "good" : "warn",
+    },
     {
       label: "AI Server",
       value: health.ok === false ? "Offline" : state.automationOnline ? "Online" : "Semak",
@@ -1494,6 +1620,8 @@ function buildAutopilotFlowItems() {
   const publisher = health.publisher || state.publisher.config || {};
   const preflight = health.publisherPreflight || state.publisher.preflight || {};
   const extension = health.extension || state.extensionBridge.config || {};
+  const control = state.automationControl || {};
+  const automationEnabled = control.enabled !== false && control.status !== "stopped";
   const deepseekReady = Boolean(health.deepseek?.hasKey || state.aiHealth.hasKey);
   const pending = queue.pending ?? state.scheduled.length;
   const limit = queue.limit || THREADS_SCHEDULE_LIMIT;
@@ -1504,6 +1632,15 @@ function buildAutopilotFlowItems() {
   const preflightDeepSeek = preflight.enabled === false ? false : preflight.aiEnabled !== false;
 
   return [
+    {
+      step: "00",
+      title: "Autopilot utama",
+      detail: automationEnabled
+        ? "Mula automation aktif. ThreadsMe akan ulang semak flow setiap 60 saat dan rekod log automatik."
+        : "Automation sedang dihentikan. Queue tidak diubah dan publisher tidak berjalan sehingga Akmal tekan Mula automation.",
+      status: automationEnabled ? "passed" : "review",
+      badge: automationEnabled ? "ON" : "OFF",
+    },
     {
       step: "01",
       title: "Product Intel + DeepSeek",
@@ -2846,6 +2983,51 @@ async function runAutoAuditNow(sourceButton) {
   }
 }
 
+async function setAutomationControl(action) {
+  const isStart = action === "start";
+  const buttons = [
+    els.startAutomationButton,
+    els.stopAutomationButton,
+    els.publisherStartAutomationButton,
+    els.publisherStopAutomationButton,
+  ].filter(Boolean);
+  buttons.forEach((button) => {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  });
+  try {
+    const response = await apiFetch("/api/automation-control", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ action }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Kawalan automation gagal");
+    applyStatusData(data.status || {});
+    state.automationSummary = data.summary || state.automationSummary;
+    if (data.control) {
+      state.automationControl = { ...state.automationControl, ...data.control };
+      state.automationLogs = Array.isArray(data.control.logs) ? data.control.logs : state.automationLogs;
+    }
+    if (data.publisher) state.publisher.config = { ...(state.publisher.config || {}), lastResult: data.publisher };
+    await loadAutomationHealth();
+    render();
+    showToast(
+      isStart ? "Automation dimulakan" : "Automation dihentikan",
+      isStart
+        ? "ThreadsMe akan jalan autopilot, sync status, audit produk dan queue secara automatik."
+        : "Autopilot dihentikan. Sistem kekal online tetapi tidak ubah queue/publisher.",
+      isStart ? "success" : "warn",
+    );
+  } finally {
+    buttons.forEach((button) => {
+      button.removeAttribute("aria-busy");
+    });
+    renderAutomationControl();
+  }
+}
+
 function bindAuditControls() {
   if (!els.auditSaveMetadataButton) return;
   els.auditSaveMetadataButton.addEventListener("click", () => {
@@ -2882,6 +3064,30 @@ function bindAuditControls() {
   });
   els.downloadBackupButton?.addEventListener("click", () => {
     downloadRuntimeBackup();
+  });
+  els.startAutomationButton?.addEventListener("click", () => {
+    setAutomationControl("start").catch((error) => {
+      showErrorToast(error, "Mula automation gagal");
+      renderAutomationControl();
+    });
+  });
+  els.stopAutomationButton?.addEventListener("click", () => {
+    setAutomationControl("stop").catch((error) => {
+      showErrorToast(error, "Henti automation gagal");
+      renderAutomationControl();
+    });
+  });
+  els.publisherStartAutomationButton?.addEventListener("click", () => {
+    setAutomationControl("start").catch((error) => {
+      showErrorToast(error, "Mula automation gagal");
+      renderAutomationControl();
+    });
+  });
+  els.publisherStopAutomationButton?.addEventListener("click", () => {
+    setAutomationControl("stop").catch((error) => {
+      showErrorToast(error, "Henti automation gagal");
+      renderAutomationControl();
+    });
   });
 }
 
@@ -2995,6 +3201,7 @@ function render() {
   renderPreview();
   renderStatusTable();
   renderUnblockAdvice();
+  renderAutomationControl();
   renderAutomationHealth();
   renderActionCenter();
   renderProductAudit();

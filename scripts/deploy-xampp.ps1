@@ -24,6 +24,7 @@ if (Test-Path $extensionSource) {
 $staticItems = @(
   "index.html",
   "styles.css",
+  "config.js",
   "app.js"
 )
 

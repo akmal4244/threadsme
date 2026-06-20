@@ -22,6 +22,7 @@ const publishLogFile = process.env.THREADSME_PUBLISH_LOG_FILE || path.join(runti
 const productIntelCacheFile = process.env.THREADSME_PRODUCT_INTEL_CACHE_FILE || path.join(runtimeRoot, "product-intel-cache.json");
 const backupRoot = process.env.THREADSME_BACKUP_DIR || path.join(workspaceRoot, "work", "backups");
 const logRoot = process.env.THREADSME_LOG_DIR || path.join(runtimeRoot, "logs");
+const automationLogFileName = "automation-events.log";
 const threadsConfigFile = path.join(workspaceRoot, "work", "private", "threads-config.json");
 const threadsTokenFile = path.join(workspaceRoot, "work", "private", "threads-access-token.txt");
 const extensionBridgeFile = path.join(workspaceRoot, "work", "private", "extension-bridge.json");
@@ -53,6 +54,7 @@ const productIntelCacheTtlMs = Math.max(1, Number(process.env.THREADSME_PRODUCT_
 const productIntelCacheMaxEntries = Math.max(50, Math.min(Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_MAX || 250), 1000));
 const logMaxBytes = Math.max(64 * 1024, Math.min(Number(process.env.THREADSME_LOG_MAX_BYTES || 1_048_576), 20 * 1024 * 1024));
 const logBackups = Math.max(1, Math.min(Number(process.env.THREADSME_LOG_BACKUPS || 5), 20));
+const minimumExtensionVersion = "0.1.6";
 const allowedOrigins = new Set(
   String(
     process.env.THREADSME_ALLOWED_ORIGINS ||
@@ -745,6 +747,63 @@ async function appendRuntimeLog(fileName, entry) {
   }
 }
 
+async function readRuntimeLog(fileName, limit = 20) {
+  const safeName = String(fileName || "api.log").replace(/[^a-z0-9_.-]/gi, "_");
+  const file = path.join(logRoot, safeName);
+  try {
+    const raw = await readFile(file, "utf8");
+    return raw
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .slice(-Math.max(1, Math.min(Number(limit || 20), 100)))
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return { malaysiaTime: "", event: "log_parse_error", message: line.slice(0, 260) };
+        }
+      })
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+function normalizeAutomationControl(statusData = {}) {
+  const source = statusData.automationControl && typeof statusData.automationControl === "object"
+    ? statusData.automationControl
+    : {};
+  const enabled = statusData.automationMode !== false && source.enabled !== false;
+  const status = enabled ? "running" : "stopped";
+  return {
+    enabled,
+    status,
+    label: enabled ? "Autopilot aktif" : "Autopilot dihentikan",
+    detail: enabled
+      ? "ThreadsMe menjalankan Product Intel, DeepSeek, Quality Gate, queue, extension sync dan publisher mengikut jadual."
+      : "Loop server masih hidup, tetapi flow autopilot tidak mengubah queue/publisher sehingga Akmal tekan Mula automation.",
+    startedAt: source.startedAt || (enabled ? statusData.lastAutomationAt || "" : ""),
+    stoppedAt: source.stoppedAt || "",
+    lastChangedAt: source.lastChangedAt || statusData.lastAutomationAt || "",
+    lastRunAt: source.lastRunAt || statusData.lastAutomationAt || "",
+    lastChangedBy: source.lastChangedBy || "system",
+  };
+}
+
+function automationControlWithLogs(statusData = {}, logs = []) {
+  return {
+    ...normalizeAutomationControl(statusData),
+    logs: Array.isArray(logs) ? logs : [],
+  };
+}
+
+function automationEventTitle(entry = {}) {
+  const event = String(entry.event || "").replace(/_/g, " ");
+  if (entry.message) return String(entry.message);
+  if (event) return event.charAt(0).toUpperCase() + event.slice(1);
+  return "Automation event";
+}
+
 async function fileExists(file) {
   try {
     await access(file);
@@ -781,6 +840,15 @@ async function ensureRuntimeFiles() {
     remaining: [],
     automationMode: true,
     automationLimit: threadsScheduleLimit,
+    automationControl: {
+      enabled: true,
+      status: "running",
+      startedAt: `${malaysiaNow()} GMT+8`,
+      stoppedAt: "",
+      lastChangedAt: `${malaysiaNow()} GMT+8`,
+      lastChangedBy: "system",
+      lastRunAt: "",
+    },
   });
   await ensureRuntimeFile(storyRunsFile, legacyStoryRunsFile, { runs: [] });
   await ensureRuntimeFile(publishLogFile, legacyPublishLogFile, { entries: [] });
@@ -1286,6 +1354,7 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
   const nativeScheduleMode = Boolean(options.nativeScheduleMode || statusData.nativeScheduleMode);
   const autoCompletePastSlots = nativeScheduleMode || options.autoCompletePastSlots !== false;
   const publisher = options.publisher || statusData.publisher || {};
+  const automationControl = normalizeAutomationControl(statusData);
   const previousScheduled = uniqueSortedNumbers(statusData.scheduled);
   const previousPosted = uniqueSortedNumbers(statusData.posted);
   const previousFailed = uniqueSortedNumbers(statusData.failed);
@@ -1509,7 +1578,13 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
       nativeThreadsScheduledNumbers,
       nativeThreadsScheduledCount: nativeThreadsScheduledNumbers.length,
       nativeThreadsScheduleProofs: activeNativeProofs,
-      automationMode: true,
+      automationMode: automationControl.enabled,
+      automationControl: {
+        ...automationControl,
+        enabled: automationControl.enabled,
+        status: automationControl.enabled ? "running" : "stopped",
+        lastRunAt: automationControl.enabled ? `${malaysiaNow()} GMT+8` : automationControl.lastRunAt,
+      },
       automationLimit: threadsScheduleLimit,
       publisher,
       lastAutomationAt: `${malaysiaNow()} GMT+8`,
@@ -1835,6 +1910,40 @@ async function runThreadsPublisherDue({ scheduleData, statusData, config, hasTok
 }
 
 async function runThreadsMeAutomation() {
+  const currentStatus = await readJsonFile(statusFile, {});
+  const currentControl = normalizeAutomationControl(currentStatus);
+  if (!currentControl.enabled) {
+    const logs = await readRuntimeLog(automationLogFileName, 20);
+    return {
+      status: {
+        ...currentStatus,
+        automationMode: false,
+        automationControl: currentControl,
+      },
+      summary: {
+        changed: false,
+        skipped: true,
+        reason: "automation_stopped",
+        promoted: [],
+        postedNow: [],
+        unverifiedPosted: [],
+        openSlots: 0,
+        activeScheduled: uniqueSortedNumbers(currentStatus.scheduled).length,
+        blockedCount: uniqueSortedNumbers([...(currentStatus.remaining || []), ...(currentStatus.prepared || [])]).length,
+        nextBlocked: null,
+        nextPending: null,
+        nextRelease: null,
+        demotedOverLimit: [],
+      },
+      autoAudit: null,
+      publisher: {
+        active: false,
+        skipped: true,
+        reason: "automation_stopped",
+      },
+      control: automationControlWithLogs(currentStatus, logs),
+    };
+  }
   await repairRuntimeScheduleMetadataFromStoryRuns();
   await repairProductIntelCacheFromStoryRuns();
   const autoAudit = await runAutoProductAudit();
@@ -1866,7 +1975,95 @@ async function runThreadsMeAutomation() {
   });
   result.publisher = publisherSummary;
   result.status = await readJsonFile(statusFile, result.status);
+  await appendRuntimeLog(automationLogFileName, {
+    event: "automation_run",
+    message: "Autopilot sync selesai",
+    systemStatus: result.status.systemStatus || "",
+    pending: uniqueSortedNumbers(result.status.scheduled).length,
+    posted: uniqueSortedNumbers(result.status.posted).length,
+    blocked: uniqueSortedNumbers([...(result.status.remaining || []), ...(result.status.prepared || [])]).length,
+    promoted: result.summary.promoted || [],
+    postedNow: result.summary.postedNow || [],
+    nativeScheduledCount: result.status.nativeThreadsScheduledCount || result.status.lastNativeScheduledCount || 0,
+    publisher: publisherSummary?.active ? "active" : publisherSummary?.skipped ? "skipped" : "idle",
+  });
+  result.control = automationControlWithLogs(result.status, await readRuntimeLog(automationLogFileName, 20));
   return result;
+}
+
+async function getAutomationControlStatus() {
+  const statusData = await readJsonFile(statusFile, {});
+  const logs = await readRuntimeLog(automationLogFileName, 20);
+  return {
+    control: automationControlWithLogs(statusData, logs),
+    status: statusData,
+    logs,
+  };
+}
+
+async function updateAutomationControl(input = {}) {
+  const action = String(input.action || "").trim().toLowerCase();
+  if (!["start", "stop"].includes(action)) badRequest("Action automation tidak sah.");
+  const statusData = await readJsonFile(statusFile, {});
+  const nowText = `${malaysiaNow()} GMT+8`;
+  const nextControl = {
+    ...normalizeAutomationControl(statusData),
+    enabled: action === "start",
+    status: action === "start" ? "running" : "stopped",
+    startedAt: action === "start" ? nowText : normalizeAutomationControl(statusData).startedAt,
+    stoppedAt: action === "stop" ? nowText : "",
+    lastChangedAt: nowText,
+    lastChangedBy: "dashboard",
+  };
+  const updatedStatus = {
+    ...statusData,
+    automationMode: nextControl.enabled,
+    automationControl: nextControl,
+    systemStatus: nextControl.enabled ? "Autopilot dimulakan" : "Autopilot dihentikan",
+    systemNote: nextControl.enabled
+      ? "ThreadsMe autopilot aktif semula. Product Intel, DeepSeek, Quality Gate, queue dan publisher akan dipantau automatik."
+      : "ThreadsMe autopilot dihentikan oleh Akmal. Queue dan publisher tidak akan diubah sehingga Mula automation ditekan.",
+    lastAutomationControlAt: nowText,
+  };
+  await writeJsonFile(statusFile, updatedStatus);
+  await appendRuntimeLog(automationLogFileName, {
+    event: action === "start" ? "automation_started" : "automation_stopped",
+    message: action === "start" ? "Autopilot dimulakan oleh Akmal" : "Autopilot dihentikan oleh Akmal",
+    pending: uniqueSortedNumbers(updatedStatus.scheduled).length,
+    posted: uniqueSortedNumbers(updatedStatus.posted).length,
+    blocked: uniqueSortedNumbers([...(updatedStatus.remaining || []), ...(updatedStatus.prepared || [])]).length,
+  });
+  if (action === "start") {
+    return {
+      action,
+      ...(await runThreadsMeAutomation()),
+    };
+  }
+  return {
+    action,
+    status: updatedStatus,
+    summary: {
+      changed: true,
+      skipped: true,
+      reason: "automation_stopped",
+      promoted: [],
+      postedNow: [],
+      unverifiedPosted: [],
+      openSlots: 0,
+      activeScheduled: uniqueSortedNumbers(updatedStatus.scheduled).length,
+      blockedCount: uniqueSortedNumbers([...(updatedStatus.remaining || []), ...(updatedStatus.prepared || [])]).length,
+      nextBlocked: null,
+      nextPending: null,
+      nextRelease: null,
+      demotedOverLimit: [],
+    },
+    publisher: {
+      active: false,
+      skipped: true,
+      reason: "automation_stopped",
+    },
+    control: automationControlWithLogs(updatedStatus, await readRuntimeLog(automationLogFileName, 20)),
+  };
 }
 
 async function scheduleGeneratedVersions(input, result, runId) {
@@ -5458,22 +5655,72 @@ async function getPublisherStatus() {
   };
 }
 
+function isNativeScheduleProofStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  return value === "native_scheduled"
+    || value === "native_scheduled_verified"
+    || value === "native_schedule_accepted"
+    || value === "native_schedule_confirmed";
+}
+
 function getNativeProofMap(statusData) {
   const value = statusData?.nativeThreadsScheduleProofs;
+  const proofMap = {};
   if (Array.isArray(value)) {
-    return value.reduce((map, item) => {
+    value.forEach((item) => {
       const number = Number(item?.number);
-      if (Number.isInteger(number) && number > 0) map[number] = item;
-      return map;
-    }, {});
+      if (Number.isInteger(number) && number > 0) proofMap[number] = item;
+    });
+  } else if (value && typeof value === "object") {
+    Object.assign(proofMap, value);
   }
-  return value && typeof value === "object" ? { ...value } : {};
+
+  const publishResults = statusData?.publishResults;
+  if (publishResults && typeof publishResults === "object") {
+    Object.entries(publishResults).forEach(([key, proof]) => {
+      const number = Number(key);
+      if (!Number.isInteger(number) || number <= 0 || !isNativeScheduleProofStatus(proof?.status)) return;
+      if (proofMap[number]) return;
+      proofMap[number] = {
+        number,
+        status: proof.status,
+        scheduledAt: proof.scheduledAt || proof.createdAt || "",
+        slot: proof.slot || "",
+        account: proof.account || "",
+        proofText: proof.proofText || "",
+        nativeScheduledCount: Number(proof.nativeScheduledCount || 0),
+        source: "publishResults",
+      };
+    });
+  }
+
+  return proofMap;
 }
 
 function getExtensionToken(req) {
   const auth = String(req.headers.authorization || "").trim();
   if (/^bearer\s+/i.test(auth)) return auth.replace(/^bearer\s+/i, "").trim();
   return String(req.headers["x-threadsme-extension-token"] || "").trim();
+}
+
+function compareVersion(left, right) {
+  const leftParts = String(left || "0.0.0").split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const rightParts = String(right || "0.0.0").split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
+function requireFreshExtensionClient(req) {
+  const version = String(req.headers["x-threadsme-extension-version"] || "").trim();
+  if (compareVersion(version, minimumExtensionVersion) >= 0) return version;
+  throw new HttpError(
+    426,
+    `ThreadsMe Extension perlu reload/install versi ${minimumExtensionVersion} dahulu. Extension lama dihentikan daripada ambil post baru untuk elak duplicate composer.`,
+  );
 }
 
 async function requireExtensionBridge(req) {
@@ -5641,6 +5888,7 @@ async function getExtensionBridgeStatus(req) {
 }
 
 async function getExtensionNext(req) {
+  requireFreshExtensionClient(req);
   const bridge = await requireExtensionBridge(req);
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const statusData = await readJsonFile(statusFile, {});
@@ -5692,20 +5940,20 @@ async function syncExtensionNativeSchedule(req, input) {
   const threadsConnected = Boolean(input.threadsConnected);
   const accountLabel = sanitizeThreadsAccountLabel(input.account, threadsConnected);
   const existingProofMap = getNativeProofMap(statusData);
-  const retainedProofMap = scanReliable
-    ? stableNativeNumbers.reduce((map, number) => {
-        map[number] = existingProofMap[number] || {
-          number,
-          status: "native_scheduled",
-          scheduledAt: `${malaysiaNow()} GMT+8`,
-          slot: scheduleData.posts?.[number - 1]?.slot || "",
-          account: accountLabel,
-          proofText: "",
-          nativeScheduledCount: stableNativeCount,
-        };
-        return map;
-      }, {})
-    : existingProofMap;
+  const retainedProofMap = { ...existingProofMap };
+  if (scanReliable) {
+    stableNativeNumbers.forEach((number) => {
+      retainedProofMap[number] = retainedProofMap[number] || {
+        number,
+        status: "native_scheduled",
+        scheduledAt: `${malaysiaNow()} GMT+8`,
+        slot: scheduleData.posts?.[number - 1]?.slot || "",
+        account: accountLabel,
+        proofText: "",
+        nativeScheduledCount: stableNativeCount,
+      };
+    });
+  }
   const nextBridge = await writeExtensionBridgeConfig({
     ...bridge,
     lastSyncAt: `${malaysiaNow()} GMT+8`,
@@ -6184,6 +6432,7 @@ const server = createServer(async (req, res) => {
       const hasShopeeCookie = Boolean(await getShopeeCookie());
       const productIntelCache = await getProductIntelCacheStatus();
       const extensionBridge = await readExtensionBridgeConfig();
+      const automationLogs = await readRuntimeLog(automationLogFileName, 20);
       sendJson(res, 200, {
         ok: true,
         runtimeRoot,
@@ -6201,9 +6450,16 @@ const server = createServer(async (req, res) => {
         publisher: sanitizeThreadsConfig(config, hasToken),
         publisherPreflight: buildPublisherPreflightSummary(scheduleData, statusData),
         extension: sanitizeExtensionBridgeConfig(extensionBridge),
+        automationControl: automationControlWithLogs(statusData, automationLogs),
+        automationLogs,
         audit: productAuditSummary(scheduleData, runs),
         autoAudit: autoAudit.summary,
       });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/automation-control") {
+      sendJson(res, 200, { ok: true, ...(await getAutomationControlStatus()) });
       return;
     }
 
@@ -6289,6 +6545,12 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/automation/sync") {
       const result = await runThreadsMeAutomation();
       sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/automation-control") {
+      const input = await readBody(req);
+      sendJson(res, 200, { ok: true, ...(await updateAutomationControl(input)) });
       return;
     }
 

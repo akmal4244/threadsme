@@ -146,8 +146,62 @@
       .filter(visible);
   }
 
+  function scheduleRowKey(value) {
+    const text = normalizeComposerText(value);
+    const match = text.match(/Posting\s+(today|tomorrow)\s+at\s+\d{1,2}:\d{2}\s*(?:AM|PM)?\s*GMT\+8/i)
+      || text.match(/Posting\s+\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}\s*(?:AM|PM)?/i)
+      || text.match(/Posting\s+on\s+[^|]{4,80}?\s+at\s+\d{1,2}:\d{2}\s*(?:AM|PM)?/i);
+    return match ? match[0].toLowerCase() : "";
+  }
+
+  function scheduledRowsFromPage() {
+    const candidates = Array.from(document.querySelectorAll('[role="dialog"] button, [role="dialog"] [role="button"], [role="dialog"] div, main button, main [role="button"], article'))
+      .filter(visible)
+      .map((element) => textOf(element).replace(/\s+/g, " "))
+      .filter((value) => /Posting\s+(today|tomorrow|on|\d{1,2}\/\d{1,2})|Scheduled|Dijadual/i.test(value));
+    const seen = new Set();
+    const unique = [];
+    for (const value of candidates) {
+      const key = scheduleRowKey(value) || value.slice(0, 140).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(value);
+    }
+    return unique;
+  }
+
+  function verifyFilledParts(parts) {
+    const boxes = getTextboxes();
+    const expected = parts.map(normalizeComposerText);
+    const filled = boxes.slice(0, 3).map(textboxValue);
+    const mismatchIndex = expected.findIndex((part, index) => filled[index] !== part);
+    const extraFilled = boxes.slice(3).map(textboxValue).filter(Boolean);
+    if (mismatchIndex >= 0 || extraFilled.length) {
+      boxes.forEach(clearTextboxValue);
+      const actualLength = mismatchIndex >= 0 ? (filled[mismatchIndex] || "").length : extraFilled.join(" ").length;
+      throw new Error(`Composer Threads berubah/bertindih selepas tindakan UI. Expected ${expected[mismatchIndex] || "3 bahagian"}; actual ${actualLength} aksara. Extension kosongkan composer untuk elak post salah.`);
+    }
+  }
+
+  async function dismissDirtyComposer() {
+    const boxes = getTextboxes();
+    const dirty = boxes.some((box) => textboxValue(box));
+    if (!boxes.length && !/\bDrafts\b/i.test(allText())) return false;
+    if (boxes.length) boxes.forEach(clearTextboxValue);
+    await sleep(220);
+    clickByText([/^cancel$/i, /^close$/i, /^back$/i, /^x$/i, /batal/i, /tutup/i, /kembali/i], { required: false });
+    await sleep(420);
+    clickByText([/don't save/i, /discard/i, /delete draft/i, /buang/i, /jangan simpan/i, /padam draf/i], { required: false });
+    await sleep(520);
+    return dirty || boxes.length > 0;
+  }
+
   async function ensureComposer() {
     let boxes = getTextboxes();
+    if (boxes.length && boxes.some((box) => textboxValue(box))) {
+      await dismissDirtyComposer();
+      boxes = getTextboxes();
+    }
     if (boxes.length) return boxes[0];
     clickByText([/new thread/i, /start a thread/i, /^post$/i, /create/i, /cipta/i, /karang/i], { required: false });
     await sleep(1400);
@@ -195,15 +249,7 @@
     await setTextboxValue(boxes[2], parts[2]);
     await sleep(Math.max(2200, delayMs));
 
-    boxes = getTextboxes();
-    const filled = boxes.slice(0, 3).map(textboxValue);
-    const expected = parts.map(normalizeComposerText);
-    const mismatch = filled.find((value, index) => value !== expected[index]);
-    const extraFilled = boxes.slice(3).map(textboxValue).filter(Boolean);
-    if (mismatch || extraFilled.length) {
-      boxes.forEach(clearTextboxValue);
-      throw new Error("Composer Threads nampak tidak selari selepas isi. Extension kosongkan draf untuk elak duplicate/over-limit.");
-    }
+    verifyFilledParts(parts);
   }
 
   function validatePreview(post) {
@@ -281,13 +327,9 @@
     const login = detectLoginState();
     const postingMatches = text.match(/Posting\s+\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}\s*(AM|PM)?/gi) || [];
     const scheduledKeywordCount = (text.match(/\bScheduled\b/gi) || []).length;
-    const rows = Array.from(document.querySelectorAll('[role="dialog"] div, main div, article'))
-      .filter(visible)
-      .map((element) => textOf(element).replace(/\s+/g, " "))
-      .filter((value) => /Posting|Scheduled|Dijadual/i.test(value))
-      .slice(0, 80);
-    const count = postingMatches.length || Math.min(rows.length, Math.max(0, scheduledKeywordCount));
-    const scanReliable = Boolean(count || rows.length || /\b(Scheduled posts|Scheduled|Posting|Dijadual|Draf)\b/i.test(text));
+    const rows = scheduledRowsFromPage().slice(0, 80);
+    const count = postingMatches.length || rows.filter(scheduleRowKey).length || Math.min(rows.length, Math.max(0, scheduledKeywordCount));
+    const scanReliable = Boolean(count || rows.length || /\b(Scheduled posts|Scheduled|Posting|Dijadual|Draf|Drafts)\b/i.test(text));
     return {
       account: accountLabel(),
       threadsConnected: login.connected,
@@ -314,7 +356,9 @@
     try {
       await fillThread(post, delayMs);
       validatePreview(post);
+      verifyFilledParts(parts);
       await openScheduler(post.slot, delayMs);
+      verifyFilledParts(parts);
       validatePreview(post);
       await submitSchedule(delayMs, parts);
       const scan = scanScheduledDrafts();

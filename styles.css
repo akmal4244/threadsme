@@ -372,6 +372,8 @@ body.auth-locked .system-shell {
 .calendar-panel,
 .automation-focus,
 .automation-rail article,
+.automation-control-main,
+.automation-log-panel,
 .action-center-panel,
 .health-panel,
 .audit-panel,
@@ -833,6 +835,155 @@ h2 {
   font-size: 0.74rem;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.automation-control-panel {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.08fr) minmax(300px, 0.72fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.automation-control-main,
+.automation-log-panel {
+  min-width: 0;
+  padding: 17px;
+}
+
+.automation-control-main {
+  display: grid;
+  gap: 14px;
+  background:
+    radial-gradient(circle at 92% 14%, rgba(115, 214, 196, 0.16), transparent 15rem),
+    rgba(255, 255, 255, 0.94);
+}
+
+.publisher-automation-control {
+  display: grid;
+  gap: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 251, 248, 0.92)),
+    radial-gradient(circle at 92% 10%, rgba(115, 214, 196, 0.12), transparent 15rem);
+}
+
+.automation-control-status {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(26, 32, 30, 0.08);
+  border-radius: var(--radius);
+  background: rgba(249, 251, 248, 0.78);
+  padding: 14px;
+}
+
+.automation-control-status strong,
+.automation-control-status span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.automation-control-status strong {
+  color: var(--kumo-ink);
+  font-size: 1.04rem;
+  line-height: 1.25;
+}
+
+.automation-control-status span {
+  color: var(--kumo-subtle);
+  font-size: 0.82rem;
+}
+
+.automation-control-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.automation-control-actions button {
+  min-height: 44px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+#startAutomationButton,
+#publisherStartAutomationButton {
+  border-color: transparent;
+  background: var(--kumo-ink);
+  color: #fff;
+}
+
+#stopAutomationButton,
+#publisherStopAutomationButton {
+  border: 1px solid rgba(186, 64, 64, 0.22);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--kumo-danger);
+}
+
+#startAutomationButton:hover:not(:disabled),
+#publisherStartAutomationButton:hover:not(:disabled),
+#stopAutomationButton:hover:not(:disabled),
+#publisherStopAutomationButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+#startAutomationButton:disabled,
+#publisherStartAutomationButton:disabled,
+#stopAutomationButton:disabled,
+#publisherStopAutomationButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+}
+
+.automation-log-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+}
+
+.automation-log-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  max-height: 270px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.automation-log-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  border: 1px solid rgba(26, 32, 30, 0.08);
+  border-radius: 10px;
+  background: var(--kumo-surface-soft);
+  padding: 10px 11px;
+}
+
+.automation-log-item strong,
+.automation-log-item span,
+.automation-log-item small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.automation-log-item strong {
+  color: var(--kumo-ink);
+  font-size: 0.84rem;
+  line-height: 1.25;
+}
+
+.automation-log-item span {
+  color: var(--kumo-subtle);
+  font-size: 0.74rem;
+  font-weight: 750;
+  text-align: right;
+}
+
+.automation-log-item small {
+  grid-column: 1 / -1;
+  color: var(--kumo-subtle);
+  font-size: 0.76rem;
+  line-height: 1.42;
 }
 
 .action-center-panel {
@@ -2389,6 +2540,7 @@ h2 {
   .calendar-layout,
   .workbench,
   .publisher-layout,
+  .automation-control-panel,
   .automation-board {
     grid-template-columns: 1fr;
   }
@@ -2458,6 +2610,8 @@ h2 {
   .audit-metrics,
   .action-summary-grid,
   .note-panel,
+  .automation-control-panel,
+  .automation-control-actions,
   .automation-rail,
   .slot-meta,
   .story-two-col,
@@ -2539,6 +2693,8 @@ h2 {
   .metrics-grid article,
   .note-panel,
   .automation-focus,
+  .automation-control-main,
+  .automation-log-panel,
   .automation-rail article,
   .health-panel,
   .action-center-panel,
@@ -2559,6 +2715,7 @@ h2 {
   .module-header,
   .metrics-grid,
   .note-panel,
+  .automation-control-panel,
   .automation-board,
   .action-layout,
   .story-lab,

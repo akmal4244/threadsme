@@ -78,6 +78,8 @@ try {
   assert.match(index.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
   assert.match(index.headers.get("content-security-policy") || "", /connect-src .*https:\/\/api\.example\.test/);
   assert.doesNotMatch(index.headers.get("content-security-policy") || "", /not-a-url|ftp:\/\/bad\.example/);
+  const indexHtml = await index.text();
+  assert.match(indexHtml, /config\.js\?v=4/, "index should load the current config cache-bust version");
 
   const app = await expectStatus("/threadsme/app.js?v=static-qa", 200);
   assert.match(app.headers.get("cache-control") || "", /immutable/);
@@ -87,6 +89,14 @@ try {
 
   const config = await expectStatus("/threadsme/config.js", 200);
   assert.equal(config.headers.get("cache-control"), "no-store");
+  const configSource = await config.text();
+  assert.match(configSource, /isProductionHost/, "config should separate production host detection from localhost");
+  assert.match(configSource, /isLocalHost/, "config should explicitly protect localhost and loopback origins");
+  assert.doesNotMatch(
+    configSource,
+    /host\s*===\s*["']threadsme\.akmalmarvis\.com["']\s*\|\|\s*host\s*===\s*["']localhost["']/,
+    "localhost must not route to the production API by default",
+  );
 
   await expectStatus("/threadsme/assets/threadsme-favicon.svg?v=static-qa", 200);
   await expectStatus("/threadsme/", 200, { method: "HEAD" });

@@ -45,6 +45,7 @@ async function apiFetch(path, options = {}) {
   const bridgeUrl = normalizeBridgeUrl(config.bridgeUrl);
   const headers = new Headers(options.headers || {});
   headers.set("authorization", `Bearer ${config.token}`);
+  headers.set("x-threadsme-extension-version", chrome.runtime.getManifest().version || "0.0.0");
   if (options.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   const response = await fetch(`${bridgeUrl}${path}`, {
     ...options,

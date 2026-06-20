@@ -178,6 +178,48 @@ async function run() {
     });
     assert(csrfBlocked.response.status === 403, "POST tanpa CSRF mesti pulang 403.");
 
+    const automationControl = await request("/api/automation-control", {
+      headers: { cookie },
+    });
+    assert(automationControl.response.status === 200 && automationControl.json?.control, "Automation control status mesti tersedia selepas login.");
+    const automationControlCsrfBlocked = await request("/api/automation-control", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+      },
+      body: JSON.stringify({ action: "stop" }),
+    });
+    assert(automationControlCsrfBlocked.response.status === 403, "Automation control tanpa CSRF mesti ditolak.");
+    const stopAutomation = await request("/api/automation-control", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+        "x-threadsme-csrf": csrfToken,
+      },
+      body: JSON.stringify({ action: "stop" }),
+    });
+    assert(stopAutomation.response.status === 200 && stopAutomation.json?.control?.enabled === false, "Henti automation mesti set control.enabled=false.");
+    const stoppedSync = await request("/api/automation/sync", {
+      method: "POST",
+      headers: {
+        cookie,
+        "x-threadsme-csrf": csrfToken,
+      },
+    });
+    assert(stoppedSync.response.status === 200 && stoppedSync.json?.summary?.skipped === true, "Automation sync mesti skip bila autopilot dihentikan.");
+    const startAutomation = await request("/api/automation-control", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+        "x-threadsme-csrf": csrfToken,
+      },
+      body: JSON.stringify({ action: "start" }),
+    });
+    assert(startAutomation.response.status === 200 && startAutomation.json?.control?.enabled === true, "Mula automation mesti aktifkan semula autopilot.");
+
     const invalidStatus = await request("/api/story-runs/status", {
       method: "POST",
       headers: {
