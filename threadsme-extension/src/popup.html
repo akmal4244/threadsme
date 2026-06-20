@@ -17,6 +17,40 @@
         </div>
       </header>
 
+      <section class="schedule-panel">
+        <div class="section-head">
+          <div>
+            <span>Schedule setting</span>
+            <strong>Autopilot slot Threads</strong>
+          </div>
+          <em id="scheduleStatusBadge">Belum sync</em>
+        </div>
+        <div class="schedule-metrics">
+          <div>
+            <span>Native</span>
+            <strong id="nativeCountText">-/25</strong>
+          </div>
+          <div>
+            <span>Next siri</span>
+            <strong id="nextNumberText">-</strong>
+          </div>
+          <div>
+            <span>Delay</span>
+            <select id="humanDelayMs" aria-label="Delay manusiawi">
+              <option value="1200">1.2s</option>
+              <option value="1800">1.8s</option>
+              <option value="2500">2.5s</option>
+              <option value="4000">4s</option>
+            </select>
+          </div>
+        </div>
+        <div class="schedule-actions">
+          <button id="fillToTarget" type="button">Isi sampai 25</button>
+          <button id="scheduleNext" type="button">Schedule satu siri</button>
+        </div>
+        <p id="scheduleHelp">Tekan Test connection atau Sync untuk semak slot sebenar. Extension akan jadualkan ikut slot ThreadsMe.</p>
+      </section>
+
       <section class="panel">
         <label>
           <span>Bridge URL</span>
@@ -25,15 +59,6 @@
         <label>
           <span>Token pairing</span>
           <input id="token" type="text" autocomplete="off" spellcheck="false" placeholder="Paste token 48 aksara daripada ThreadsMe" />
-        </label>
-        <label>
-          <span>Delay manusiawi</span>
-          <select id="humanDelayMs">
-            <option value="1200">1.2 saat</option>
-            <option value="1800">1.8 saat</option>
-            <option value="2500">2.5 saat</option>
-            <option value="4000">4 saat</option>
-          </select>
         </label>
         <button id="saveConfig" type="button">Simpan pairing</button>
       </section>
@@ -49,8 +74,6 @@
         <button id="testConnection" type="button">Test connection</button>
         <button id="scanThreads" type="button">Scan Threads</button>
         <button id="syncThreads" type="button">Sync ke ThreadsMe</button>
-        <button id="scheduleNext" type="button">Schedule next approved</button>
-        <button id="fillToTarget" type="button">Isi sampai 25</button>
       </section>
 
       <pre id="log" aria-live="polite"></pre>

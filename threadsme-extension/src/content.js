@@ -49,9 +49,9 @@
     return element?.closest?.('button, [role="button"], [role="menuitem"], [role="option"], a, [tabindex]') || element;
   }
 
-  function clickByText(patterns, { required = true } = {}) {
+  function clickByText(patterns, { required = true, root = document } = {}) {
     const regexes = regexList(patterns);
-    const candidates = Array.from(document.querySelectorAll('button, [role="button"], [role="menuitem"], [role="option"], a, [aria-label]'))
+    const candidates = Array.from(root.querySelectorAll('button, [role="button"], [role="menuitem"], [role="option"], a, [aria-label]'))
       .filter(visible)
       .filter((element) => {
         const label = `${textOf(element)} ${element.getAttribute("aria-label") || ""}`.trim();
@@ -66,9 +66,9 @@
     return true;
   }
 
-  function clickLooseByText(patterns, { required = true, maxLabelLength = 96 } = {}) {
+  function clickLooseByText(patterns, { required = true, maxLabelLength = 96, root = document } = {}) {
     const regexes = regexList(patterns);
-    const candidates = Array.from(document.querySelectorAll('button, [role="button"], [role="menuitem"], [role="option"], a, div, span'))
+    const candidates = Array.from(root.querySelectorAll('button, [role="button"], [role="menuitem"], [role="option"], a, div, span'))
       .filter(visible)
       .filter((element) => {
         const label = `${textOf(element)} ${element.getAttribute("aria-label") || ""}`.replace(/\s+/g, " ").trim();
@@ -170,6 +170,44 @@
   function getTextboxes() {
     return Array.from(document.querySelectorAll('[contenteditable="true"][role="textbox"], div[contenteditable="true"], textarea'))
       .filter(visible);
+  }
+
+  function composerRoot() {
+    const firstBox = getTextboxes()[0];
+    const boxDialog = firstBox?.closest?.('[role="dialog"]');
+    if (boxDialog && visible(boxDialog)) return boxDialog;
+    const dialogs = Array.from(document.querySelectorAll('[role="dialog"]')).filter(visible);
+    return dialogs.find((dialog) => /\b(new thread|add to thread|post options|jadual|schedule)\b/i.test(textOf(dialog))) || dialogs[0] || document;
+  }
+
+  function clickComposerHeaderMenu() {
+    const root = composerRoot();
+    const menuPatterns = [
+      /^more$/i,
+      /^more options$/i,
+      /^options$/i,
+      /^menu$/i,
+      /^lagi$/i,
+      /^\.\.\.$/,
+    ];
+    if (clickByText(menuPatterns, { required: false, root })) return true;
+    if (clickLooseByText(menuPatterns, { required: false, root, maxLabelLength: 48 })) return true;
+
+    const rootRect = root === document ? document.body.getBoundingClientRect() : root.getBoundingClientRect();
+    const iconButtons = Array.from(root.querySelectorAll('button, [role="button"], [aria-label]'))
+      .filter(visible)
+      .map((element) => ({ element: clickTargetFor(element), rect: element.getBoundingClientRect(), label: textOf(element) }))
+      .filter(({ rect, label }) => {
+        const nearHeader = rect.top <= rootRect.top + 96;
+        const onRightSide = rect.left >= rootRect.left + rootRect.width * 0.55;
+        const compact = rect.width <= 64 && rect.height <= 64;
+        const isMenuish = !label || /more|option|menu|lagi|\.\.\./i.test(label);
+        return nearHeader && onRightSide && compact && isMenuish;
+      })
+      .sort((a, b) => b.rect.left - a.rect.left);
+    if (!iconButtons.length) return false;
+    iconButtons[0].element.click();
+    return true;
   }
 
   function scheduleRowKey(value) {
@@ -293,6 +331,11 @@
   }
 
   async function openPostOptionsMenu(delayMs) {
+    if (clickComposerHeaderMenu()) {
+      await sleep(Math.max(800, Math.min(delayMs, 1600)));
+      return;
+    }
+
     const optionPatterns = [
       /^post options$/i,
       /post options/i,
@@ -305,10 +348,13 @@
       /^lagi$/i,
       /^\.\.\.$/,
     ];
+    const root = composerRoot();
     const opened = clickByText(optionPatterns, { required: false })
+      || clickByText(optionPatterns, { required: false, root })
+      || clickLooseByText(optionPatterns, { required: false, root, maxLabelLength: 90 })
       || clickLooseByText(optionPatterns, { required: false, maxLabelLength: 90 });
     if (!opened) {
-      throw new Error("Butang Post Options tidak ditemui. Pastikan composer Threads terbuka dan tiada popup lain menutup bahagian bawah composer.");
+      throw new Error("Menu schedule Threads tidak ditemui. Pastikan composer Threads terbuka dan tiada popup lain menutup header atau bahagian bawah composer.");
     }
     await sleep(Math.max(800, Math.min(delayMs, 1600)));
   }
@@ -319,9 +365,13 @@
       /schedule post/i,
       /schedule thread/i,
       /schedule/i,
+      /schedule for later/i,
+      /date and time/i,
       /^jadual$/i,
       /jadualkan/i,
       /dijadual/i,
+      /tarikh/i,
+      /masa/i,
     ];
     if (clickByText(schedulePatterns, { required: false })) return true;
     if (clickLooseByText(schedulePatterns, { required: false, maxLabelLength: 110 })) return true;

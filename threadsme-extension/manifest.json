@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ThreadsMe Extension",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Bridge Chrome untuk tally scheduled post sebenar di Threads dan isi slot kosong daripada queue ThreadsMe.",
   "permissions": ["activeTab", "alarms", "scripting", "storage"],
   "host_permissions": [

@@ -12,6 +12,10 @@ const els = {
   statusBadge: document.querySelector("#statusBadge"),
   statusTitle: document.querySelector("#statusTitle"),
   statusText: document.querySelector("#statusText"),
+  scheduleStatusBadge: document.querySelector("#scheduleStatusBadge"),
+  nativeCountText: document.querySelector("#nativeCountText"),
+  nextNumberText: document.querySelector("#nextNumberText"),
+  scheduleHelp: document.querySelector("#scheduleHelp"),
   toastStack: document.querySelector("#toastStack"),
   log: document.querySelector("#log"),
 };
@@ -106,6 +110,19 @@ function setStatus(title, text, badge = "Sedia") {
   els.statusBadge.textContent = badge;
 }
 
+function updateSchedulePanel(queue = {}, bridge = {}) {
+  const target = Number(queue.targetScheduledCount || 25);
+  const native = Number(queue.nativeScheduledCount || 0);
+  const next = queue.nextNumber || "-";
+  const connected = Boolean(bridge.threadsConnected);
+  els.nativeCountText.textContent = `${native}/${target}`;
+  els.nextNumberText.textContent = String(next);
+  els.scheduleStatusBadge.textContent = native >= target ? "Cukup" : connected ? "Online" : "Belum sync";
+  els.scheduleHelp.textContent = native >= target
+    ? "Slot Threads native sudah cukup. Autopilot akan pantau semula bila slot kosong."
+    : `Masih perlu ${Math.max(0, target - native)} slot. Tekan Isi sampai 25 untuk jadualkan baki approved secara automatik.`;
+}
+
 function send(type, payload = {}) {
   return chrome.runtime.sendMessage({ type, payload });
 }
@@ -141,6 +158,12 @@ async function loadConfig() {
   els.humanDelayMs.value = String(config.humanDelayMs || 1800);
   if (config.token) {
     setStatus("Pairing tersimpan", `Token ${String(config.token).length} aksara sudah ada. Tekan Test connection untuk semak bridge.`, "Sedia");
+    send("THREADSME_API_STATUS")
+      .then((status) => {
+        if (status?.ok === false) return;
+        updateSchedulePanel(status.queue || {}, status.bridge || {});
+      })
+      .catch(() => null);
   }
 }
 
@@ -162,6 +185,7 @@ async function saveConfig() {
     `Bridge connected. Native ${queue.nativeScheduledCount || 0}/${queue.targetScheduledCount || 25}. Next siri ${queue.nextNumber || "-"}.`,
     "OK",
   );
+  updateSchedulePanel(queue, status.bridge || {});
   log("Pairing disimpan dan disemak", {
     nativeScheduledCount: queue.nativeScheduledCount || 0,
     targetScheduledCount: queue.targetScheduledCount || 25,
@@ -183,6 +207,7 @@ async function testConnection() {
     `Native ${queue.nativeScheduledCount || 0}/${queue.targetScheduledCount || 25}. Akaun ${bridge.threadsConnected ? "connected" : "belum sync"}. Next siri ${queue.nextNumber || "-"} disediakan.`,
     fullyOnline ? "Online penuh" : "Online",
   );
+  updateSchedulePanel(queue, bridge);
   log("Status ThreadsMe", result.queue);
   return result;
 }
@@ -205,6 +230,10 @@ async function scanThreads() {
       : "Sila login Threads dalam Chrome, kemudian scan semula.",
     result.threadsConnected ? "Connected" : "Login dulu",
   );
+  updateSchedulePanel(
+    { nativeScheduledCount: result.nativeScheduledCount || 0, targetScheduledCount: 25 },
+    { threadsConnected: result.threadsConnected },
+  );
   log("Scan Threads", result);
   return result;
 }
@@ -223,6 +252,7 @@ async function syncThreads() {
       : "ThreadsMe sync diterima, tapi akaun Threads belum dikesan login.",
     allOnline ? "Online penuh" : "Synced",
   );
+  updateSchedulePanel(result.synced?.queue || { nativeScheduledCount: count, targetScheduledCount: target }, { threadsConnected: connected });
   log("Sync ThreadsMe", result.synced?.queue || result);
   return result;
 }
@@ -236,6 +266,7 @@ async function scheduleNext() {
     return result;
   }
   setStatus("Scheduled", `Siri ${result.next?.next?.number || result.proof?.proof?.number || "-"} dihantar ke Threads.`, "Proof");
+  if (result.proof?.queue) updateSchedulePanel(result.proof.queue, { threadsConnected: true });
   log("Schedule next selesai", result.proof || result);
   return result;
 }
@@ -248,6 +279,7 @@ async function fillToTarget() {
     const queue = status.queue || {};
     if ((queue.nativeScheduledCount || 0) >= (queue.targetScheduledCount || 25)) {
       setStatus("Target cukup", `Threads native ${queue.nativeScheduledCount}/${queue.targetScheduledCount}.`, "Cukup");
+      updateSchedulePanel(queue, { threadsConnected: true });
       log("Fill berhenti kerana target cukup", queue);
       return { ok: true, queue };
     }
